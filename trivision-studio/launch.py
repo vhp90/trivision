@@ -107,36 +107,71 @@ if IN_COLAB:
         const status = document.getElementById('trivision-popout-status');
         if (!btn || !status) return;
 
-        async function resolveUrl() {
+        async function resolveLaunchTarget() {
+            const nativeLink = Array.from(document.querySelectorAll('a')).find(
+                anchor =>
+                    anchor.textContent &&
+                    anchor.textContent.includes('TriVision Studio') &&
+                    anchor.href
+            );
+            if (nativeLink && nativeLink.href) {
+                return {kind: 'native-link', url: nativeLink.href};
+            }
+            const iframe = Array.from(document.querySelectorAll('iframe')).find(
+                frame => frame.src && frame.src.includes('prod.colab.dev')
+            );
+            if (iframe && iframe.src) {
+                return {kind: 'iframe-src', url: iframe.src};
+            }
             let url = await google.colab.kernel.proxyPort(%d, {cache: false});
             if (url && !url.startsWith('http')) url = 'https://' + url;
             if (url && !url.endsWith('/')) url += '/';
-            return url;
+            return {kind: 'proxy-port', url};
         }
 
         btn.addEventListener('click', async function() {
             btn.disabled = true;
             btn.textContent = 'Opening...';
-            status.textContent = 'Resolving fresh Colab proxy URL...';
+            status.textContent = 'Resolving the best Colab launch link...';
             try {
-                const url = await resolveUrl();
-                const health = url.replace(/\/$/, '') + '/api/keepalive?ts=' + Date.now();
-                try {
-                    await fetch(health, {credentials: 'include', cache: 'no-store'});
-                } catch (_) {}
+                const target = await resolveLaunchTarget();
+                const url = target.url;
+                if (target.kind !== 'native-link') {
+                    const health = url.replace(/\/$/, '') + '/api/keepalive?ts=' + Date.now();
+                    try {
+                        await fetch(health, {credentials: 'include', cache: 'no-store'});
+                    } catch (_) {}
+                }
 
                 const win = window.open(url, '_blank', 'noopener,noreferrer');
                 if (!win) {
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.target = '_blank';
-                    a.rel = 'noopener noreferrer';
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
+                    if (target.kind === 'native-link') {
+                        const nativeLink = Array.from(document.querySelectorAll('a')).find(
+                            anchor =>
+                                anchor.textContent &&
+                                anchor.textContent.includes('TriVision Studio') &&
+                                anchor.href === url
+                        );
+                        if (nativeLink) {
+                            nativeLink.click();
+                        }
+                    } else {
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.target = '_blank';
+                        a.rel = 'noopener noreferrer';
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                    }
                 }
 
-                status.innerHTML = 'Opened via fresh proxy URL: <a href="' + url + '" target="_blank" rel="noopener noreferrer" style="color:#E8A917;text-decoration:underline;">' + url + '</a>';
+                const labels = {
+                    'native-link': 'Colab window link',
+                    'iframe-src': 'embedded iframe URL',
+                    'proxy-port': 'proxy URL fallback'
+                };
+                status.innerHTML = 'Opened via ' + labels[target.kind] + ': <a href="' + url + '" target="_blank" rel="noopener noreferrer" style="color:#E8A917;text-decoration:underline;">' + url + '</a>';
                 btn.textContent = '↗ Open in new tab';
             } catch (e) {
                 status.textContent = 'Open failed: ' + (e && e.message ? e.message : e);
@@ -153,7 +188,7 @@ if IN_COLAB:
     _window_ok = False
     try:
         from google.colab import output as _colab_output
-        _colab_output.serve_kernel_port_as_iframe(PORT, height='820')
+        _colab_output.serve_kernel_port_as_iframe(PORT, path='/', height='820')
         _launch_mode = "iframe"
         _iframe_ok = True
     except Exception as _iframe_err:
@@ -161,7 +196,7 @@ if IN_COLAB:
 
     try:
         from google.colab import output as _colab_output
-        _colab_output.serve_kernel_port_as_window(PORT, anchor_text="🔺 Click to open TriVision Studio")
+        _colab_output.serve_kernel_port_as_window(PORT, path='/', anchor_text="🔺 Click to open TriVision Studio")
         _window_ok = True
         if not _iframe_ok:
             _launch_mode = "window"
