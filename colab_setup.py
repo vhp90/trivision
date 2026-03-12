@@ -2,6 +2,7 @@ import os
 import pathlib
 import subprocess
 import sys
+import urllib.parse
 import urllib.request
 
 
@@ -37,6 +38,12 @@ def setup_trivision(
     drive_root="/content/drive/MyDrive/TriVision/cache",
     extra_packages=None,
 ):
+    token = str(token).strip()
+    if not token or set(token) == {"*"}:
+        raise ValueError(
+            "Set your missinglink.build token before running setup_trivision()."
+        )
+
     machine = str(machine).strip().lower()
     extra_packages = list(extra_packages or DEFAULT_EXTRA_PACKAGES)
 
@@ -44,7 +51,8 @@ def setup_trivision(
     pip_cache = drive_root / "pip_cache"
     wheelhouse = drive_root / "wheelhouse" / machine
     requirements_path = wheelhouse / f"{machine}.txt"
-    private_requirements_url = f"https://{token}@missinglink.build/{machine}.txt"
+    encoded_token = urllib.parse.quote(token, safe="")
+    private_requirements_url = f"https://{encoded_token}@missinglink.build/{machine}.txt"
 
     pip_cache.mkdir(parents=True, exist_ok=True)
     wheelhouse.mkdir(parents=True, exist_ok=True)
@@ -53,7 +61,14 @@ def setup_trivision(
     print(f"Using pip cache: {pip_cache}")
     print(f"Using wheelhouse: {wheelhouse}")
 
-    _download_requirements(private_requirements_url, requirements_path)
+    try:
+        _download_requirements(private_requirements_url, requirements_path)
+    except urllib.error.URLError as exc:
+        raise RuntimeError(
+            "Failed to reach missinglink.build for the private wheel index. "
+            "Double-check the token value and retry. "
+            f"Original error: {exc}"
+        ) from exc
 
     # Keep all remote wheels in Drive so future Colab sessions can install locally.
     _run([
