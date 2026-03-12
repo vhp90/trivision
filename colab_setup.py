@@ -2,7 +2,9 @@ import os
 import pathlib
 import subprocess
 import sys
+import base64
 import urllib.parse
+import urllib.error
 import urllib.request
 
 
@@ -23,10 +25,14 @@ def _run(cmd):
     subprocess.check_call(cmd)
 
 
-def _download_requirements(url, out_path):
+def _download_requirements(url, out_path, token=None):
     out_path = pathlib.Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(url) as resp:
+    request = urllib.request.Request(url)
+    if token:
+        auth = base64.b64encode(f"{token}:".encode("utf-8")).decode("ascii")
+        request.add_header("Authorization", f"Basic {auth}")
+    with urllib.request.urlopen(request) as resp:
         data = resp.read()
     out_path.write_bytes(data)
     return out_path
@@ -51,8 +57,7 @@ def setup_trivision(
     pip_cache = drive_root / "pip_cache"
     wheelhouse = drive_root / "wheelhouse" / machine
     requirements_path = wheelhouse / f"{machine}.txt"
-    encoded_token = urllib.parse.quote(token, safe="")
-    private_requirements_url = f"https://{encoded_token}@missinglink.build/{machine}.txt"
+    private_requirements_url = f"https://missinglink.build/{machine}.txt"
 
     pip_cache.mkdir(parents=True, exist_ok=True)
     wheelhouse.mkdir(parents=True, exist_ok=True)
@@ -62,7 +67,7 @@ def setup_trivision(
     print(f"Using wheelhouse: {wheelhouse}")
 
     try:
-        _download_requirements(private_requirements_url, requirements_path)
+        _download_requirements(private_requirements_url, requirements_path, token=token)
     except urllib.error.URLError as exc:
         raise RuntimeError(
             "Failed to reach missinglink.build for the private wheel index. "
