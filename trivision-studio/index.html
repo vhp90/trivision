@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>TriVision Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/styles.css">
+<script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div class="app">
+
+  <!-- ═══════════════════ HEADER ═══════════════════ -->
+  <header class="app-header">
+    <div class="app-header-left">
+      <div class="brand-mark" aria-hidden="true">TV</div>
+      <div class="brand-copy">
+        <h1>TriVision <span>Studio</span></h1>
+        <div class="brand-sub">Powered by TRELLIS.2</div>
+      </div>
+    </div>
+    <div class="app-header-right">
+      <div class="header-badge" id="keepaliveBadge"><span class="dot"></span> Connected</div>
+      <button class="hw-toggle" id="hwToggle" onclick="toggleHwPanel()">
+        <div class="hw-spark" id="hwSpark">
+          <span style="height:3px"></span><span style="height:3px"></span><span style="height:3px"></span>
+          <span style="height:3px"></span><span style="height:3px"></span>
+        </div>
+        GPU
+      </button>
+      <button class="console-toggle-btn" id="consoleToggle" onclick="toggleConsole()">▸ Console</button>
+    </div>
+  </header>
+
+  <!-- HW Monitor Panel (fixed overlay) -->
+  <div class="hw-panel" id="hwPanel">
+    <div class="hw-header">
+      <span class="hw-title">⚡ Hardware Monitor</span>
+      <span class="hw-phase" id="hwPhase">—</span>
+    </div>
+    <div class="hw-body">
+      <!-- GPU Utilization -->
+      <div class="hw-metric">
+        <div class="hw-metric-head">
+          <span class="hw-metric-label">GPU Compute</span>
+          <span class="hw-metric-value" id="hwGpuUtil">—</span>
+        </div>
+        <div class="hw-bar"><div class="hw-bar-fill gpu" id="hwGpuUtilBar" style="width:0%"></div></div>
+      </div>
+      <!-- VRAM -->
+      <div class="hw-metric">
+        <div class="hw-metric-head">
+          <span class="hw-metric-label">VRAM</span>
+          <span class="hw-metric-value" id="hwVram">—</span>
+        </div>
+        <div class="hw-bar"><div class="hw-bar-fill vram" id="hwVramBar" style="width:0%"></div></div>
+      </div>
+      <!-- CPU -->
+      <div class="hw-metric">
+        <div class="hw-metric-head">
+          <span class="hw-metric-label">CPU</span>
+          <span class="hw-metric-value" id="hwCpu">—</span>
+        </div>
+        <div class="hw-bar"><div class="hw-bar-fill cpu" id="hwCpuBar" style="width:0%"></div></div>
+      </div>
+      <!-- RAM -->
+      <div class="hw-metric">
+        <div class="hw-metric-head">
+          <span class="hw-metric-label">RAM</span>
+          <span class="hw-metric-value" id="hwRam">—</span>
+        </div>
+        <div class="hw-bar"><div class="hw-bar-fill ram" id="hwRamBar" style="width:0%"></div></div>
+      </div>
+      <div class="hw-sep"></div>
+      <!-- Detail stats -->
+      <div class="hw-stats-row" id="hwDetails">
+        <span class="hw-stat"><span class="hw-dot r"></span> <span id="hwTemp">—</span></span>
+        <span class="hw-stat"><span class="hw-dot y"></span> <span id="hwPower">—</span></span>
+        <span class="hw-stat"><span class="hw-dot g"></span> <span id="hwGpuName">—</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ SIDEBAR ═══════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-tabs">
+      <button class="sidebar-tab active" data-panel="panelGen" onclick="switchSidebarTab(this)">🔺 Generate</button>
+      <button class="sidebar-tab" data-panel="panelEdit" onclick="switchSidebarTab(this)">🔧 Edit</button>
+      <button class="sidebar-tab" data-panel="panelRmbg" onclick="switchSidebarTab(this)">✂ RMBG</button>
+    </div>
+
+    <!-- ── GENERATE PANEL ── -->
+    <div class="sidebar-panel active" id="panelGen">
+
+      <div class="sidebar-section">
+        <div class="section-label">📁 Images</div>
+        <div class="dropzone-compact" id="dropzone3d">
+          <div class="dz-text">Drop images or <strong>browse</strong></div>
+          <input type="file" id="fileInput3d" multiple accept="image/*">
+        </div>
+        <div class="thumb-strip" id="thumbs3d"></div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-label">✂ Background</div>
+        <div class="auto-rmbg-row">
+          <span class="label-text">Auto Remove</span>
+          <div class="radio-group">
+            <label class="on"><input type="radio" name="autoRmbg" value="on" checked style="accent-color:var(--green)"> On</label>
+            <label class="off"><input type="radio" name="autoRmbg" value="off"> Off</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-label">🎬 Render Mode</div>
+        <div class="render-grid" id="renderModes">
+          <div class="render-opt" data-mode="none" onclick="selectRender(this)"><div class="ro-icon">⚡</div><div class="ro-name">None</div></div>
+          <div class="render-opt" data-mode="snapshot" onclick="selectRender(this)"><div class="ro-icon">📷</div><div class="ro-name">Snap</div></div>
+          <div class="render-opt sel" data-mode="video" onclick="selectRender(this)"><div class="ro-icon">🎬</div><div class="ro-name">Video</div></div>
+          <div class="render-opt" data-mode="perspective" onclick="selectRender(this)"><div class="ro-icon">🔄</div><div class="ro-name">Turntable</div></div>
+          <div class="render-opt" data-mode="rts_sprite" onclick="selectRender(this)"><div class="ro-icon">🎮</div><div class="ro-name">RTS</div></div>
+          <div class="render-opt" data-mode="doom_sprite" onclick="selectRender(this)"><div class="ro-icon">👹</div><div class="ro-name">Doom</div></div>
+        </div>
+        <!-- RTS sub-settings -->
+        <div class="sub-settings rts" id="rtsSettings">
+          <div class="sub-title">🎮 RTS Sprite Settings</div>
+          <div class="field-row">
+            <div class="field"><label>Directions</label><select id="sSpriteDirections"><option value="8">8</option><option value="16" selected>16</option><option value="24">24</option><option value="32">32</option></select></div>
+            <div class="field"><label>Frame px</label><select id="sSpriteSize"><option value="64">64</option><option value="128">128</option><option value="256" selected>256</option><option value="512">512</option></select></div>
+          </div>
+          <div class="field"><label>Pitch</label><select id="sSpritePitch"><option value="0.35">20° RPG</option><option value="0.52" selected>30° Iso</option><option value="0.65">37° Diablo</option><option value="0.79">45° 3/4</option></select></div>
+        </div>
+        <!-- Doom sub-settings -->
+        <div class="sub-settings doom" id="doomSettings">
+          <div class="sub-title">👹 Doom Sprite Settings</div>
+          <div class="field-row">
+            <div class="field"><label>Angles</label><select id="sDoomDirections"><option value="8" selected>8</option><option value="16">16</option></select></div>
+            <div class="field"><label>Frame px</label><select id="sDoomSize"><option value="64">64</option><option value="128">128</option><option value="256" selected>256</option><option value="512">512</option></select></div>
+          </div>
+          <div class="field"><label>Camera</label><select id="sDoomPitch"><option value="0.0" selected>Eye level</option><option value="0.05">Slight down</option><option value="0.1">Low angle</option><option value="-0.05">Slight up</option></select></div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-label">⚙ Settings</div>
+        <div class="field"><label>Output dir</label><input type="text" id="sOutDir" value="/content/drive/MyDrive/TriVision/exports"></div>
+        <div class="field-row">
+          <div class="field"><label>FPS</label><input type="number" id="sFps" value="15" min="5" max="60"></div>
+          <div class="field"><label>Preview px</label><select id="sPreviewRes"><option value="256">256</option><option value="512" selected>512</option><option value="768">768</option><option value="1024">1024</option></select></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Texture</label><select id="sTexture"><option>1024</option><option>2048</option><option selected>4096</option><option>8192</option></select></div>
+          <div class="field"><label>Sampling steps</label><input type="number" id="sSteps" value="12" min="4" max="32"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Max faces</label><input type="number" id="sDecimate" value="1000000" min="1000"></div>
+          <div class="field"><label>Remesh band</label><input type="number" id="sRemeshBand" value="1.0" min="0.1" max="3.0" step="0.1"></div>
+        </div>
+        <label class="checkbox-sm"><input type="checkbox" id="sRemesh" checked> Remesh</label>
+      </div>
+
+      <div class="sidebar-section">
+        <button class="gen-btn" id="genBtn3d" onclick="startGen()" disabled>Generate →</button>
+      </div>
+    </div>
+
+    <!-- ── EDIT PANEL ── -->
+    <div class="sidebar-panel" id="panelEdit">
+
+      <!-- Stage Inspector -->
+      <div class="sidebar-section">
+        <div class="section-label">📊 Stage Inspector</div>
+        <div class="edit-no-model" id="editNoModel">
+          <div class="enm-text">Select a model tab above to inspect its stages and enable editing.</div>
+        </div>
+        <div class="edit-model-info" id="editModelInfo" style="display:none">
+          <div class="emi-name" id="editModelName">—</div>
+          <div class="stage-list" id="stageList"></div>
+        </div>
+      </div>
+
+      <!-- Mask Painting -->
+      <div class="sidebar-section" id="editMaskSection" style="display:none">
+        <div class="section-label">🖌 Region Mask</div>
+        <div class="mask-actions">
+          <button class="mask-btn" id="maskPaintBtn" onclick="onTogglePaint()">
+            <span class="mb-icon">🖌</span> Paint Mask
+          </button>
+          <button class="mask-btn secondary" id="maskUploadBtn" onclick="document.getElementById('maskFileInput').click()">
+            <span class="mb-icon">📤</span> Upload Mask
+          </button>
+          <input type="file" id="maskFileInput" accept="image/*" style="display:none"
+                 onchange="onMaskFileUpload(this)">
+        </div>
+        <div class="mask-status" id="maskStatus">No mask — full model will be affected</div>
+        <div class="mask-preview-row" id="maskPreviewRow" style="display:none">
+          <canvas id="maskPreviewThumb" width="64" height="64" class="mask-thumb"></canvas>
+          <div class="mask-preview-info">
+            <span class="mpi-label">UV Mask Active</span>
+            <button class="mask-btn-sm" onclick="onDownloadMask()">↓ Save</button>
+            <button class="mask-btn-sm danger" onclick="onClearMask()">✕ Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lock Controls -->
+      <div class="sidebar-section" id="editLocksSection" style="display:none">
+        <div class="section-label">🔒 Stage Locks</div>
+        <div class="lock-grid" id="lockGrid">
+          <button class="lock-opt" data-lock="lock_structure" onclick="selectLock(this)">
+            <div class="lock-icon">🏗</div>
+            <div class="lock-info">
+              <div class="lock-name">Lock Structure</div>
+              <div class="lock-desc">Keep silhouette, regen shape + texture</div>
+            </div>
+          </button>
+          <button class="lock-opt sel" data-lock="lock_geometry" onclick="selectLock(this)">
+            <div class="lock-icon">🔒</div>
+            <div class="lock-info">
+              <div class="lock-name">Lock Geometry</div>
+              <div class="lock-desc">Keep exact shape, retexture only</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Influence Weight -->
+      <div class="sidebar-section" id="editInfluenceSection" style="display:none">
+        <div class="section-label">⚖ Influence</div>
+        <div class="influence-row">
+          <label class="inf-label">Blend Weight</label>
+          <input type="range" id="infWeight" min="0" max="100" value="100" class="inf-slider"
+                 oninput="document.getElementById('infWeightVal').textContent = this.value + '%'">
+          <span class="inf-value" id="infWeightVal">100%</span>
+        </div>
+        <div class="inf-hint">How strongly the new reference replaces the original in masked regions. 100% = full replace, 50% = blend half-and-half.</div>
+
+        <div class="influence-row" style="margin-top:10px">
+          <label class="inf-label">Sampling Steps</label>
+          <input type="range" id="infSteps" min="4" max="24" value="12" class="inf-slider"
+                 oninput="document.getElementById('infStepsVal').textContent = this.value">
+          <span class="inf-value" id="infStepsVal">12</span>
+        </div>
+        <div class="inf-hint">More steps = higher quality, slower. 8–12 is fast, 16–24 for final quality.</div>
+      </div>
+
+      <!-- Reference Image for Retexture -->
+      <div class="sidebar-section" id="editRefSection" style="display:none">
+        <div class="section-label">🖼 New Reference Image</div>
+        <div class="dropzone-compact" id="dropzoneEdit">
+          <div class="dz-text">Drop reference image or <strong>browse</strong></div>
+          <input type="file" id="fileInputEdit" accept="image/*">
+        </div>
+        <div class="thumb-strip" id="thumbsEdit"></div>
+      </div>
+
+      <!-- Retexture Action -->
+      <div class="sidebar-section" id="editActionSection" style="display:none">
+        <button class="gen-btn retex-btn" id="retexBtn" onclick="startRetexture()" disabled>
+          <span class="retex-icon">🔄</span> Retexture →
+        </button>
+        <div class="retex-summary" id="retexSummary"></div>
+      </div>
+
+      <!-- Edit History -->
+      <div class="sidebar-section" id="editHistorySection" style="display:none">
+        <div class="section-label">📜 Edit History</div>
+        <div class="edit-history-list" id="editHistoryList"></div>
+      </div>
+
+    </div>
+
+    <!-- ── RMBG PANEL ── -->
+    <div class="sidebar-panel" id="panelRmbg">
+      <div class="sidebar-section">
+        <div class="section-label">✂ Remove Background</div>
+        <div class="dropzone-compact" id="dropzoneRmbg">
+          <div class="dz-text">Drop images or <strong>browse</strong></div>
+          <input type="file" id="fileInputRmbg" multiple accept="image/*">
+        </div>
+        <div class="thumb-strip" id="thumbsRmbg"></div>
+      </div>
+      <div class="sidebar-section">
+        <button class="gen-btn" id="genBtnRmbg" onclick="startRmbg()" disabled>Remove BG →</button>
+      </div>
+      <div class="sidebar-section" id="rmbgResultsSection" style="display:none">
+        <div class="section-label">✅ Results</div>
+        <div class="rmbg-results" id="rmbgResultsList"></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══════════════════ MAIN CANVAS ═══════════════════ -->
+  <section class="main">
+    <!-- Model navigation tabs -->
+    <div class="canvas-topbar" id="canvasTopbar">
+      <div class="topbar-spacer"></div>
+    </div>
+
+    <!-- Viewport -->
+    <div class="canvas-viewport" id="canvasViewport">
+      <!-- Empty state -->
+      <div class="canvas-empty" id="canvasEmpty">
+        <div class="ce-icon">🔺</div>
+        <div class="ce-title">No models yet</div>
+        <div class="ce-sub">Upload images in the sidebar and hit Generate to create 3D models. Results appear here.</div>
+      </div>
+
+      <!-- Media display (per-model, toggled by JS) -->
+      <div class="canvas-media" id="canvasMedia"></div>
+
+      <!-- No-render state -->
+      <div class="canvas-no-render" id="canvasNoRender">
+        <div class="cnr-icon">📦</div>
+        <div class="cnr-text">GLB exported — no render preview selected</div>
+      </div>
+
+      <!-- 3D GLB Viewer (Three.js) -->
+      <div class="canvas-3dviewer" id="canvas3dViewer">
+        <canvas id="glbCanvas"></canvas>
+        <div class="viewer-hud" id="viewerHud">
+          <span class="hud-stat" id="hudTris">—</span>
+          <span class="hud-stat" id="hudVerts">—</span>
+          <span class="hud-stat" id="hudFps">—</span>
+          <span class="hud-mode" id="hudMode">SHADED</span>
+        </div>
+        <div class="viewer-toolbar" id="viewerToolbar">
+          <button class="vtb-btn" id="btnResetCam" title="Reset Camera">⟲</button>
+          <button class="vtb-btn" id="btnWireframe" title="Toggle Wireframe">◇</button>
+          <button class="vtb-btn gold" id="btnTexMap" title="View Texture Map">🗺 Texture</button>
+          <div class="vtb-sep"></div>
+          <button class="vtb-btn" id="btnZoomIn" title="Zoom In" onclick="window.viewer3d?.zoomIn()">+</button>
+          <button class="vtb-btn" id="btnZoomOut" title="Zoom Out" onclick="window.viewer3d?.zoomOut()">−</button>
+          <div class="vtb-sep"></div>
+          <button class="vtb-btn vtb-sm" title="Pan Left (A)" onclick="window.viewer3d?.panCamera(-1,0)">◂</button>
+          <button class="vtb-btn vtb-sm" title="Pan Right (D)" onclick="window.viewer3d?.panCamera(1,0)">▸</button>
+          <button class="vtb-btn vtb-sm" title="Pan Up (W)" onclick="window.viewer3d?.panCamera(0,1)">▴</button>
+          <button class="vtb-btn vtb-sm" title="Pan Down (S)" onclick="window.viewer3d?.panCamera(0,-1)">▾</button>
+        </div>
+
+        <!-- Paint toolbar (shown when paint mode is active) -->
+        <div class="paint-toolbar" id="paintToolbar">
+          <div class="pt-group">
+            <button class="pt-btn active" id="ptBrush" onclick="setPaintTool('brush')" title="Paint Brush">🖌</button>
+            <button class="pt-btn" id="ptEraser" onclick="setPaintTool('eraser')" title="Eraser">◻</button>
+          </div>
+          <div class="pt-sep"></div>
+          <div class="pt-group pt-size-group">
+            <label class="pt-label">Size</label>
+            <input type="range" id="ptSizeSlider" min="4" max="100" value="24" class="pt-slider"
+                   oninput="onBrushSizeChange(this.value)">
+            <span class="pt-value" id="ptSizeVal">24</span>
+          </div>
+          <div class="pt-sep"></div>
+          <button class="pt-btn active" id="ptCamLock" onclick="onToggleCamLock()" title="Lock/Unlock Camera — Hold Space to orbit">🔒</button>
+          <div class="pt-sep"></div>
+          <button class="pt-btn" id="ptClear" onclick="onClearMask()" title="Clear Mask">🗑</button>
+          <button class="pt-btn" id="ptDone" onclick="onExitPaint()" title="Done Painting">✓</button>
+        </div>
+      </div>
+
+      <!-- Texture Map Modal -->
+      <div class="tex-modal-overlay" id="texModalOverlay">
+        <div class="tex-modal">
+          <div class="tex-modal-header">
+            <span class="tex-modal-title">🗺 UV Texture Map</span>
+            <div class="tex-modal-actions">
+              <a class="tex-dl-btn" id="texDownloadBtn" download="texture_map.png">↓ Download</a>
+              <button class="tex-close-btn" id="texCloseBtn">✕</button>
+            </div>
+          </div>
+          <div class="tex-modal-body" id="texModalBody">
+            <div class="tex-checker-bg">
+              <canvas id="texPreviewCanvas"></canvas>
+            </div>
+          </div>
+          <div class="tex-modal-footer">
+            <span class="tex-info" id="texInfo">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress overlay -->
+      <div class="canvas-progress" id="canvasProgress">
+        <div class="cp-ring"></div>
+        <div class="cp-phase" id="cpPhase">Starting…</div>
+        <div class="cp-detail" id="cpDetail"></div>
+        <div class="cp-bar"><div class="cp-bar-fill" id="cpFill"></div></div>
+        <div class="cp-pct" id="cpPct">0%</div>
+      </div>
+    </div>
+
+    <!-- Sprite strip (shown for RTS/Doom results) -->
+    <div class="sprite-strip" id="spriteStrip"></div>
+
+    <!-- Bottom action bar -->
+    <div class="canvas-bottombar" id="canvasBottombar">
+      <div class="bar-info" id="barInfo">
+        <span class="bi-name" id="barName">—</span>
+      </div>
+      <div class="bar-spacer"></div>
+      <div id="barActions"></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ CONSOLE DRAWER ═══════════════════ -->
+  <div class="console-drawer" id="consoleDrawer">
+    <div class="console-drawer-header">
+      <span class="cdh-label">Output</span>
+      <div class="console-tab-btns">
+        <button class="console-tab-btn active" data-target="consoleSystem" onclick="switchConsoleTab(this)">System</button>
+        <button class="console-tab-btn" data-target="consoleJob" onclick="switchConsoleTab(this)">Job Log</button>
+      </div>
+    </div>
+    <div class="console-content" id="consoleSystem"></div>
+    <div class="console-content job-log" id="consoleJob" style="display:none"></div>
+  </div>
+
+</div>
+<script src="/static/app.js"></script>
+<script type="module" src="/static/viewer3d.js"></script>
+</body>
+</html>
