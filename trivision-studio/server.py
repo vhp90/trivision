@@ -28,6 +28,34 @@ if IN_COLAB and not os.path.exists("/content/drive/MyDrive"):
     drive.mount("/content/drive", force_remount=False)
 
 
+def _normalize_hf_token():
+    token = (
+        os.environ.get("HF_TOKEN")
+        or os.environ.get("HUGGINGFACE_TOKEN")
+        or os.environ.get("HUGGINGFACE_HUB_TOKEN")
+        or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+    )
+    if token:
+        os.environ["HF_TOKEN"] = token
+        os.environ["HUGGINGFACE_TOKEN"] = token
+        os.environ["HUGGINGFACE_HUB_TOKEN"] = token
+        os.environ["HUGGING_FACE_HUB_TOKEN"] = token
+    return token
+
+
+HF_TOKEN = _normalize_hf_token()
+if HF_TOKEN:
+    try:
+        from huggingface_hub import login as _hf_login
+
+        _hf_login(token=HF_TOKEN, add_to_git_credential=False)
+        print("✅ Hugging Face token detected")
+    except Exception as _hf_login_err:
+        print(f"⚠ Hugging Face login helper failed: {_hf_login_err}")
+else:
+    print("⚠ No Hugging Face token found in environment; gated repos may fail")
+
+
 # ══════════════════════════════════════════════════════════════
 # CONSOLE CAPTURE
 # ══════════════════════════════════════════════════════════════
