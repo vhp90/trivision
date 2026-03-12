@@ -229,6 +229,7 @@ def should_use_full_gpu_residency():
 
 
 FULL_GPU_RESIDENCY = should_use_full_gpu_residency()
+KEEP_PIPELINE_ON_GPU = FULL_GPU_RESIDENCY
 
 # Max faces for render — above this the nvdiffrec renderer can trigger
 # illegal memory access which poisons the entire CUDA context.
@@ -250,6 +251,10 @@ print(
     "Pipeline GPU residency: "
     + ("full GPU (large-VRAM mode)" if FULL_GPU_RESIDENCY else "low-VRAM streaming mode")
 )
+if KEEP_PIPELINE_ON_GPU:
+    _alloc_gb = torch.cuda.memory_allocated() / 1e9
+    _reserved_gb = torch.cuda.memory_reserved() / 1e9
+    print(f"Persistent GPU residency enabled | allocated={_alloc_gb:.1f}GB reserved={_reserved_gb:.1f}GB")
 
 if downloaded_from_hf:
     try:
@@ -285,14 +290,44 @@ def cuda_ok():
 def safe_cleanup():
     gc.collect()
     try:
-        torch.cuda.empty_cache()
+        if not KEEP_PIPELINE_ON_GPU:
+            torch.cuda.empty_cache()
     except:
         pass
     gc.collect()
 
 
+def _move_pipeline_to_gpu():
+    if hasattr(trellis_pipe, "low_vram"):
+        trellis_pipe.low_vram = False
+    trellis_pipe.cuda()
+    for name, model in getattr(trellis_pipe, "models", {}).items():
+        try:
+            model.to("cuda")
+            if hasattr(model, "low_vram"):
+                model.low_vram = False
+        except Exception as e:
+            print(f"    ⚠ move {name} to cuda failed: {e}")
+    for attr_name in ("image_cond_model", "rembg_model"):
+        model = getattr(trellis_pipe, attr_name, None)
+        if model is None:
+            continue
+        try:
+            model.to("cuda")
+        except Exception as e:
+            print(f"    ⚠ move {attr_name} to cuda failed: {e}")
+    try:
+        trellis_pipe.eval()
+    except:
+        pass
+
+
 def safe_offload_models():
     """Offload ALL pipeline models to CPU. Logs any failures."""
+    if KEEP_PIPELINE_ON_GPU:
+        alloc_gb = torch.cuda.memory_allocated() / 1e9
+        print(f"    🔒 Keeping models resident on GPU ({alloc_gb:.1f}GB allocated)")
+        return
     freed_before = torch.cuda.memory_allocated() / 1e9
     for name, model in trellis_pipe.models.items():
         try:
@@ -319,6 +354,9 @@ def safe_offload_models():
 
 
 def safe_reload_models():
+    if KEEP_PIPELINE_ON_GPU:
+        _move_pipeline_to_gpu()
+        return
     trellis_pipe.cuda()
     try:
         trellis_pipe.eval()
@@ -364,10 +402,10 @@ def get_rmbg():
                 "image-segmentation",
                 model="briaai/RMBG-1.4",
                 trust_remote_code=True,
-                device=-1,
+                device=0 if FULL_GPU_RESIDENCY else -1,
             )
             dt = round(time.perf_counter() - t0, 1)
-            print(f"✅ RMBG-1.4 loaded in {dt}s")
+            print(f"✅ RMBG-1.4 loaded in {dt}s on {'GPU' if FULL_GPU_RESIDENCY else 'CPU'}")
             rmbg_load_error[0] = None
         except Exception as e:
             rmbg_load_error[0] = str(e)
@@ -637,10 +675,12 @@ def do_render(mesh, mode, out_path, base, fps=15, resolution=1024,
                     np.clip(v.detach().cpu().numpy().transpose(1, 2, 0) * 255, 0, 255).astype(np.uint8)
                 )
             del res
-            torch.cuda.empty_cache()
+            if not KEEP_PIPELINE_ON_GPU:
+                torch.cuda.empty_cache()
 
         del renderer
-        torch.cuda.empty_cache()
+        if not KEEP_PIPELINE_ON_GPU:
+            torch.cuda.empty_cache()
 
         # ── Post-process per mode ──
         if mode == "snapshot":
@@ -931,7 +971,8 @@ def run_generate_job(job_id):
             for attempt in range(MAX_RETRIES):
                 try:
                     gc.collect()
-                    torch.cuda.empty_cache()
+                    if not KEEP_PIPELINE_ON_GPU:
+                        torch.cuda.empty_cache()
                     torch.cuda.synchronize()
                     gc.collect()
 
@@ -1025,10 +1066,14 @@ def run_generate_job(job_id):
                         )
                         if media_path:
                             job["log"].append(f"  ✓ Render: {fmt_bytes(pathlib.Path(media_path).stat().st_size)}")
-                        torch.cuda.empty_cache()
+                        if not KEEP_PIPELINE_ON_GPU:
+                            torch.cuda.empty_cache()
 
                     # ── Offload models → CPU for mesh processing ──
-                    _hw_logger.set_phase("Offloading models to CPU...", base)
+                    _hw_logger.set_phase(
+                        "Keeping models on GPU for mesh processing..." if KEEP_PIPELINE_ON_GPU else "Offloading models to CPU...",
+                        base,
+                    )
                     del out
                     safe_offload_models()
 
@@ -1714,9 +1759,10 @@ def api_retexture():
                         fps=settings.get("fps", 15),
                         resolution=settings.get("preview_resolution", 512),
                     )
-                    torch.cuda.empty_cache()
+                    if not KEEP_PIPELINE_ON_GPU:
+                        torch.cuda.empty_cache()
 
-                # Offload and do mesh processing
+                # Keep models resident on large GPUs, otherwise offload before mesh processing
                 del out_meshes
                 safe_offload_models()
 
