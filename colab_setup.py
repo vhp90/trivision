@@ -82,6 +82,8 @@ def setup_trivision(
     wheelhouse = drive_root / "wheelhouse" / machine
     requirements_path = wheelhouse / f"{machine}.txt"
     private_requirements_url = f"https://missinglink.build/{machine}.txt"
+    encoded_token = urllib.parse.quote(token, safe="")
+    authenticated_requirements_url = f"https://{encoded_token}@missinglink.build/{machine}.txt"
 
     pip_cache.mkdir(parents=True, exist_ok=True)
     wheelhouse.mkdir(parents=True, exist_ok=True)
@@ -107,7 +109,7 @@ def setup_trivision(
         _run([
             sys.executable, "-u", "-m", "pip", "download",
             "--dest", str(wheelhouse),
-            "--requirement", str(requirements_path),
+            "--requirement", authenticated_requirements_url,
             "--prefer-binary",
             "-v",
         ])
@@ -123,7 +125,7 @@ def setup_trivision(
     _run([
         sys.executable, "-u", "-m", "pip", "install",
         "--find-links", str(wheelhouse),
-        "--requirement", str(requirements_path),
+        "--requirement", authenticated_requirements_url,
         "-v",
     ])
     _run([
