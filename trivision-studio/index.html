@@ -156,6 +156,10 @@
         <div class="section-label">⚙ Settings</div>
         <div class="field"><label>Output dir</label><input type="text" id="sOutDir" value="/content/drive/MyDrive/TriVision/exports"></div>
         <div class="field-row">
+          <div class="field"><label>Speed preset</label><select id="sSpeedPreset"><option value="turbo" selected>Turbo</option><option value="balanced">Balanced</option><option value="quality">Quality</option></select></div>
+          <div class="field"><label>Pipeline</label><select id="sPipelineType"><option value="512" selected>512 Fast</option><option value="1024_cascade">1024 Cascade</option><option value="1024">1024 Direct</option><option value="1536_cascade">1536 Cascade</option></select></div>
+        </div>
+        <div class="field-row">
           <div class="field"><label>FPS</label><input type="number" id="sFps" value="15" min="5" max="60"></div>
           <div class="field"><label>Preview px</label><select id="sPreviewRes"><option value="256">256</option><option value="512" selected>512</option><option value="768">768</option><option value="1024">1024</option></select></div>
         </div>

@@ -230,6 +230,7 @@ def should_use_full_gpu_residency():
 
 FULL_GPU_RESIDENCY = should_use_full_gpu_residency()
 KEEP_PIPELINE_ON_GPU = FULL_GPU_RESIDENCY
+VALID_PIPELINE_TYPES = {"512", "1024", "1024_cascade", "1536_cascade"}
 
 # Max faces for render — above this the nvdiffrec renderer can trigger
 # illegal memory access which poisons the entire CUDA context.
@@ -590,6 +591,13 @@ def safe_stem(name):
     s = re.sub(r"\s+", "_", s)
     s = re.sub(r"[^A-Za-z0-9._-]+", "", s)
     return s or "image"
+
+
+def normalize_pipeline_type(value):
+    pipeline_type = str(value or "512").strip()
+    if pipeline_type not in VALID_PIPELINE_TYPES:
+        return "512"
+    return pipeline_type
 
 
 def fmt_bytes(n):
@@ -994,11 +1002,13 @@ def run_generate_job(job_id):
 
                     with torch.inference_mode():
                         sampling_steps = int(s.get("sampling_steps", 12))
+                        pipeline_type = normalize_pipeline_type(s.get("pipeline_type", "512"))
                         out = trellis_pipe.run(
                             [image], image_weights=[1.0],
                             sparse_structure_sampler_params={"steps": sampling_steps},
                             shape_slat_sampler_params={"steps": sampling_steps},
                             tex_slat_sampler_params={"steps": sampling_steps},
+                            pipeline_type=pipeline_type,
                             cache_stages=str(stage_cache_dir),
                         )
                     if not out:
@@ -1014,7 +1024,7 @@ def run_generate_job(job_id):
 
                     recon_s = round(time.perf_counter() - t0, 2)
                     job["log"].append(
-                        f"  ✓ Recon: {recon_s}s @ {sampling_steps} steps | "
+                        f"  ✓ Recon: {recon_s}s @ {sampling_steps} steps | {pipeline_type} | "
                         f"{mesh.vertices.shape[0]:,} verts, {mesh.faces.shape[0]:,} faces"
                     )
 
@@ -1287,14 +1297,16 @@ def api_generate():
         return jsonify({"error": "No images"}), 400
     settings = json.loads(request.form.get("settings", "{}"))
     for k, v in [("output_dir", "/content/drive/MyDrive/TriVision/exports"),
-                 ("fps", 15), ("texture_size", 4096), ("decimate_target", 1000000),
-                 ("remesh", True), ("remesh_band", 1.0), ("render_mode", "video"),
-                 ("sampling_steps", 12),
-                 ("preview_resolution", 512),
+                 ("pipeline_type", "512"),
+                 ("fps", 12), ("texture_size", 1024), ("decimate_target", 300000),
+                 ("remesh", False), ("remesh_band", 1.0), ("render_mode", "snapshot"),
+                 ("sampling_steps", 8),
+                 ("preview_resolution", 256),
                  ("sprite_directions", 16), ("sprite_size", 256), ("sprite_pitch", 0.52),
                  ("doom_directions", 8), ("doom_size", 256), ("doom_pitch", 0.0),
                  ("auto_rmbg", True)]:
         settings.setdefault(k, v)
+    settings["pipeline_type"] = normalize_pipeline_type(settings.get("pipeline_type"))
 
     # ── Validate output_dir ──
     SAFE_OUTPUT_BASES = ["/content/drive/MyDrive", "/content/"]
@@ -1556,6 +1568,16 @@ def api_retexture():
     lock_mode = request.form.get("lock_mode", "lock_geometry")
     name = request.form.get("name", "retextured")
     settings = json.loads(request.form.get("settings", "{}"))
+    settings.setdefault("pipeline_type", "512")
+    settings.setdefault("fps", 12)
+    settings.setdefault("texture_size", 1024)
+    settings.setdefault("decimate_target", 300000)
+    settings.setdefault("remesh", False)
+    settings.setdefault("remesh_band", 1.0)
+    settings.setdefault("render_mode", "snapshot")
+    settings.setdefault("preview_resolution", 256)
+    settings.setdefault("auto_rmbg", True)
+    settings["pipeline_type"] = normalize_pipeline_type(settings.get("pipeline_type"))
 
     out_dir = settings.get("output_dir", "/content/drive/MyDrive/TriVision/exports")
     SAFE_OUTPUT_BASES = ["/content/drive/MyDrive", "/content/"]
@@ -1583,7 +1605,7 @@ def api_retexture():
         mask_file.save(mask_path)
 
     blend_weight = settings.get("blend_weight", 1.0)
-    sampling_steps = settings.get("sampling_steps", 12)
+    sampling_steps = settings.get("sampling_steps", 8)
     has_mask = settings.get("has_mask", False)
 
     jobs[job_id] = {
@@ -1607,6 +1629,7 @@ def api_retexture():
             out_path.mkdir(parents=True, exist_ok=True)
 
             load_stages = {}
+            pipeline_type = normalize_pipeline_type(settings.get("pipeline_type", "512"))
             sparse_pt = os.path.join(stage_cache_dir, "sparse_structure.pt")
             shape_pt = os.path.join(stage_cache_dir, "shape_slat.pt")
             orig_tex_pt = os.path.join(stage_cache_dir, "tex_slat.pt")
@@ -1624,7 +1647,7 @@ def api_retexture():
 
             job["log"].append(f"  ▸ Locked stages: {list(load_stages.keys())}")
             job["log"].append(f"  ▸ Reference image: {safe_name}")
-            job["log"].append(f"  ▸ Blend weight: {blend_weight:.0%} | Steps: {sampling_steps}")
+            job["log"].append(f"  ▸ Blend weight: {blend_weight:.0%} | Steps: {sampling_steps} | Pipeline: {pipeline_type}")
             if has_mask and mask_path:
                 job["log"].append(f"  ▸ Mask: UV mask provided (masked latent blend)")
 
@@ -1657,6 +1680,7 @@ def api_retexture():
                         sparse_structure_sampler_params={"steps": sampling_steps},
                         shape_slat_sampler_params={"steps": sampling_steps},
                         tex_slat_sampler_params={"steps": sampling_steps},
+                        pipeline_type=pipeline_type,
                         load_stages=load_stages,
                         cache_stages=str(retex_cache),
                     )
@@ -1702,7 +1726,7 @@ def api_retexture():
                                     shape_for_decode, res = shape_loaded
                                 else:
                                     shape_for_decode = shape_loaded
-                                    res = 1024
+                                    res = 512 if pipeline_type == "512" else 1024
 
                                 with torch.inference_mode():
                                     out_meshes = trellis_pipe.decode_latent(

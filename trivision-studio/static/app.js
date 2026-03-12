@@ -19,6 +19,43 @@ let filesRmbg = [];
 let selectedRenderMode = 'video';
 let lastHwLogPath = null;
 let dropdownDismissBound = false;
+let applyingSpeedPreset = false;
+
+const SPEED_PRESETS = {
+    turbo: {
+        pipeline_type: '512',
+        sampling_steps: 8,
+        preview_resolution: 256,
+        texture_size: 1024,
+        decimate_target: 300000,
+        remesh: false,
+        remesh_band: 1.0,
+        render_mode: 'snapshot',
+        fps: 12,
+    },
+    balanced: {
+        pipeline_type: '1024_cascade',
+        sampling_steps: 10,
+        preview_resolution: 512,
+        texture_size: 2048,
+        decimate_target: 600000,
+        remesh: false,
+        remesh_band: 1.0,
+        render_mode: 'snapshot',
+        fps: 15,
+    },
+    quality: {
+        pipeline_type: '1024_cascade',
+        sampling_steps: 12,
+        preview_resolution: 512,
+        texture_size: 4096,
+        decimate_target: 1000000,
+        remesh: true,
+        remesh_band: 1.0,
+        render_mode: 'video',
+        fps: 15,
+    },
+};
 
 // completedModels: array of result objects from API, enriched with UI state
 // Each: { name, glb, media?, media_type?, sprite_frames?, sprite_dir? }
@@ -78,6 +115,25 @@ function selectRender(el) {
     $('doomSettings').classList.toggle('visible', selectedRenderMode === 'doom_sprite');
 }
 
+function applySpeedPreset(name) {
+    const preset = SPEED_PRESETS[name];
+    if (!preset) return;
+    applyingSpeedPreset = true;
+    $('sPipelineType').value = preset.pipeline_type;
+    $('sSteps').value = preset.sampling_steps;
+    $('infSteps').value = preset.sampling_steps;
+    $('infStepsVal').textContent = String(preset.sampling_steps);
+    $('sPreviewRes').value = String(preset.preview_resolution);
+    $('sTexture').value = String(preset.texture_size);
+    $('sDecimate').value = String(preset.decimate_target);
+    $('sRemesh').checked = !!preset.remesh;
+    $('sRemeshBand').value = String(preset.remesh_band);
+    $('sFps').value = String(preset.fps);
+    const renderEl = document.querySelector(`.render-opt[data-mode="${preset.render_mode}"]`);
+    if (renderEl) selectRender(renderEl);
+    applyingSpeedPreset = false;
+}
+
 // ══════════════════════════════════════════════════════════════
 // DROPZONE
 // ══════════════════════════════════════════════════════════════
@@ -110,6 +166,8 @@ function renderThumbs(arr, tId, bId) {
 
 initDrop('dropzone3d', 'fileInput3d', 'thumbs3d', 'genBtn3d', files3d);
 initDrop('dropzoneRmbg', 'fileInputRmbg', 'thumbsRmbg', 'genBtnRmbg', filesRmbg);
+$('sSpeedPreset').addEventListener('change', (e) => applySpeedPreset(e.target.value));
+applySpeedPreset($('sSpeedPreset').value);
 
 // ══════════════════════════════════════════════════════════════
 // KEEPALIVE
@@ -564,6 +622,7 @@ async function startGen() {
     files3d.forEach(f => fd.append('images', f));
     fd.append('settings', JSON.stringify({
         output_dir: $('sOutDir').value,
+        pipeline_type: $('sPipelineType').value,
         fps: parseInt($('sFps').value),
         texture_size: parseInt($('sTexture').value),
         sampling_steps: parseInt($('sSteps').value),
@@ -1068,6 +1127,7 @@ async function startRetexture() {
 
     fd.append('settings', JSON.stringify({
         output_dir: $('sOutDir').value,
+        pipeline_type: $('sPipelineType').value,
         fps: parseInt($('sFps').value),
         texture_size: parseInt($('sTexture').value),
         decimate_target: parseInt($('sDecimate').value),
