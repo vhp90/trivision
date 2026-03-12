@@ -1,5 +1,6 @@
 import os
 import pathlib
+import shlex
 import subprocess
 import sys
 import base64
@@ -20,9 +21,27 @@ DEFAULT_EXTRA_PACKAGES = [
 
 
 def _run(cmd):
-    printable = " ".join(str(part) for part in cmd)
+    printable = " ".join(shlex.quote(str(part)) for part in cmd)
     print(f"+ {printable}")
-    subprocess.check_call(cmd)
+    env = os.environ.copy()
+    env.setdefault("PYTHONUNBUFFERED", "1")
+    env.setdefault("PIP_PROGRESS_BAR", "on")
+    proc = subprocess.Popen(
+        cmd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    try:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            print(line, end="")
+    finally:
+        rc = proc.wait()
+    if rc != 0:
+        raise subprocess.CalledProcessError(rc, cmd)
 
 
 def _download_requirements(url, out_path, token=None):
@@ -36,6 +55,11 @@ def _download_requirements(url, out_path, token=None):
         data = resp.read()
     out_path.write_bytes(data)
     return out_path
+
+
+def _has_cached_wheels(wheelhouse):
+    wheelhouse = pathlib.Path(wheelhouse)
+    return wheelhouse.exists() and any(wheelhouse.glob("*.whl"))
 
 
 def setup_trivision(
@@ -75,29 +99,37 @@ def setup_trivision(
             f"Original error: {exc}"
         ) from exc
 
-    # Keep all remote wheels in Drive so future Colab sessions can install locally.
-    _run([
-        sys.executable, "-m", "pip", "download",
-        "--dest", str(wheelhouse),
-        "--requirement", str(requirements_path),
-        "--prefer-binary",
-    ])
-    _run([
-        sys.executable, "-m", "pip", "download",
-        "--dest", str(wheelhouse),
-        "--prefer-binary",
-        *extra_packages,
-    ])
+    if _has_cached_wheels(wheelhouse):
+        print("Using cached wheelhouse from Drive; skipping wheel download.")
+    else:
+        print("No cached wheels found yet; downloading the first-run wheel set to Drive.")
+        # Keep all remote wheels in Drive so future Colab sessions can install locally.
+        _run([
+            sys.executable, "-u", "-m", "pip", "download",
+            "--dest", str(wheelhouse),
+            "--requirement", str(requirements_path),
+            "--prefer-binary",
+            "-v",
+        ])
+        _run([
+            sys.executable, "-u", "-m", "pip", "download",
+            "--dest", str(wheelhouse),
+            "--prefer-binary",
+            "-v",
+            *extra_packages,
+        ])
 
     # Install from Drive-backed wheelhouse first; pip cache remains on Drive as fallback.
     _run([
-        sys.executable, "-m", "pip", "install",
+        sys.executable, "-u", "-m", "pip", "install",
         "--find-links", str(wheelhouse),
         "--requirement", str(requirements_path),
+        "-v",
     ])
     _run([
-        sys.executable, "-m", "pip", "install",
+        sys.executable, "-u", "-m", "pip", "install",
         "--find-links", str(wheelhouse),
+        "-v",
         *extra_packages,
     ])
 
