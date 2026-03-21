@@ -1,0 +1,335 @@
+import { generationRuntimeDefaults, projectRecordDefaults, runtimeDefaults } from '@/lib/config/app';
+import type {
+  LightingRigRecord,
+  MaterialRecord,
+  ProjectRecord,
+  SettingSection,
+  UserProfile,
+  WorkspaceSummary,
+} from '@/lib/db/types';
+import { getDefaultGenerationModel, getModelParameterDefaults } from '@/lib/generation/registry';
+
+const defaultModel = getDefaultGenerationModel();
+const defaultParameters = getModelParameterDefaults(defaultModel);
+
+function createDemoProject(input: Partial<ProjectRecord> & Pick<ProjectRecord, 'id' | 'workspaceId' | 'workspaceName' | 'name' | 'prompt' | 'visual'>): ProjectRecord {
+  return {
+    id: input.id,
+    userId: testAccount.profile.id,
+    workspaceId: input.workspaceId,
+    workspaceName: input.workspaceName,
+    name: input.name,
+    format: input.format ?? 'GLB',
+    updatedLabel: input.updatedLabel ?? '2h ago',
+    trisLabel: input.trisLabel ?? '3D asset ready',
+    visual: input.visual,
+    prompt: input.prompt,
+    seed: input.seed ?? String(defaultParameters.seed ?? 42),
+    resolution: input.resolution ?? '1024',
+    creativity: input.creativity ?? 85,
+    detailLevel: input.detailLevel ?? 'Configured',
+    triCount: input.triCount ?? projectRecordDefaults.triCount,
+    vertCount: input.vertCount ?? projectRecordDefaults.vertCount,
+    fps: input.fps ?? projectRecordDefaults.fps,
+    autoSaveLabel: input.autoSaveLabel ?? 'Saved to local workspace',
+    isFavorite: input.isFavorite ?? false,
+    isRecent: input.isRecent ?? true,
+    status: input.status ?? 'succeeded',
+    providerId: input.providerId ?? defaultModel.providerId,
+    modelId: input.modelId ?? defaultModel.id,
+    generationJobId: null,
+    parameterValues: input.parameterValues ?? defaultParameters,
+    sourceImagePath: null,
+    outputAssetPath: null,
+    outputFormat: input.outputFormat ?? generationRuntimeDefaults.outputFormat,
+    errorMessage: null,
+    submittedAt: input.submittedAt ?? null,
+    completedAt: input.completedAt ?? null,
+  };
+}
+
+export const testAccount = {
+  email: 'technical.artist@trivision.io',
+  password: 'Trivision123!',
+  profile: {
+    id: 'user-technical-artist',
+    fullName: 'Technical Artist',
+    email: 'technical.artist@trivision.io',
+    initials: 'TA',
+    roleLabel: 'Lead Technical Artist',
+    region: 'US-EAST-1',
+    latencyLabel: '12ms',
+    sessionLabel: runtimeDefaults.verifiedSessionLabel,
+    engineVersion: runtimeDefaults.engineVersion,
+    unreadNotifications: 3,
+  } satisfies UserProfile,
+} as const;
+
+export const demoWorkspaces: WorkspaceSummary[] = [
+  {
+    id: 'workspace-core',
+    userId: testAccount.profile.id,
+    name: 'Core Sandbox',
+    code: 'CORE',
+    description: 'Primary environment for experimental text-to-3D generations and system baselines.',
+    status: 'Primary',
+    projectCount: 4,
+    favoriteCount: 2,
+    updatedLabel: 'Updated 8m ago',
+    primaryFocus: 'Concept modeling',
+    secondaryFocus: 'Rapid iteration',
+    isPrimary: true,
+  },
+  {
+    id: 'workspace-retail',
+    userId: testAccount.profile.id,
+    name: 'Retail Signage',
+    code: 'RETL',
+    description: 'Asset pipeline focused on props, kiosks, and merchandising fixtures.',
+    status: 'Active',
+    projectCount: 3,
+    favoriteCount: 1,
+    updatedLabel: 'Updated 42m ago',
+    primaryFocus: 'Prop kits',
+    secondaryFocus: 'Brand systems',
+    isPrimary: false,
+  },
+  {
+    id: 'workspace-automotive',
+    userId: testAccount.profile.id,
+    name: 'Automotive Lab',
+    code: 'AUTO',
+    description: 'Vehicle shells, interior explorations, and mobility concept geometry.',
+    status: 'Review',
+    projectCount: 2,
+    favoriteCount: 1,
+    updatedLabel: 'Updated 2h ago',
+    primaryFocus: 'Vehicle forms',
+    secondaryFocus: 'Surface studies',
+    isPrimary: false,
+  },
+];
+
+export const demoProjects: ProjectRecord[] = [
+  createDemoProject({
+    id: 'project-cyberpunk-vending-machine',
+    workspaceId: 'workspace-core',
+    workspaceName: 'Core Sandbox',
+    name: 'Cyberpunk Vending Machine',
+    prompt: 'Cyberpunk neon vending machine',
+    visual: 'factory',
+    isFavorite: true,
+  }),
+  createDemoProject({
+    id: 'project-neon-sign-motel',
+    workspaceId: 'workspace-retail',
+    workspaceName: 'Retail Signage',
+    name: "Neon Sign 'Motel'",
+    prompt: 'Weathered motel neon sign',
+    visual: 'lightbulb',
+    format: 'OBJ',
+  }),
+  createDemoProject({
+    id: 'project-sci-fi-helmet-concept',
+    workspaceId: 'workspace-core',
+    workspaceName: 'Core Sandbox',
+    name: 'Sci-Fi Helmet Concept',
+    prompt: 'Sci-fi helmet with layered visor system',
+    visual: 'globe',
+    isFavorite: true,
+  }),
+  createDemoProject({
+    id: 'project-hover-car-chassis',
+    workspaceId: 'workspace-automotive',
+    workspaceName: 'Automotive Lab',
+    name: 'Hover Car Chassis',
+    prompt: 'Hover car chassis with aerodynamic panels',
+    visual: 'car',
+    format: 'FBX',
+  }),
+  createDemoProject({
+    id: 'project-industrial-loader-drone',
+    workspaceId: 'workspace-core',
+    workspaceName: 'Core Sandbox',
+    name: 'Industrial Loader Drone',
+    prompt: 'Industrial loader drone with articulated lift arms',
+    visual: 'factory',
+    isFavorite: true,
+    isRecent: false,
+  }),
+  createDemoProject({
+    id: 'project-volumetric-sconce',
+    workspaceId: 'workspace-retail',
+    workspaceName: 'Retail Signage',
+    name: 'Volumetric Wall Sconce',
+    prompt: 'Premium wall sconce with layered glass diffusion',
+    visual: 'lightbulb',
+    format: 'OBJ',
+    isRecent: false,
+  }),
+];
+
+export const demoMaterials: MaterialRecord[] = [
+  {
+    id: 'material-brushed-titanium',
+    userId: testAccount.profile.id,
+    name: 'Brushed Titanium',
+    category: 'Metal',
+    finish: 'Satin',
+    palette: 'Graphite / Silver',
+    usageLabel: 'Used in 18 assets',
+    updatedLabel: 'Synced 16m ago',
+  },
+  {
+    id: 'material-carbon-shell',
+    userId: testAccount.profile.id,
+    name: 'Carbon Shell',
+    category: 'Composite',
+    finish: 'Matte',
+    palette: 'Charcoal',
+    usageLabel: 'Used in 11 assets',
+    updatedLabel: 'Synced 44m ago',
+  },
+  {
+    id: 'material-neon-acrylic',
+    userId: testAccount.profile.id,
+    name: 'Neon Acrylic',
+    category: 'Polymer',
+    finish: 'Gloss',
+    palette: 'Amber / Magenta',
+    usageLabel: 'Used in 23 assets',
+    updatedLabel: 'Synced 1h ago',
+  },
+  {
+    id: 'material-weathered-concrete',
+    userId: testAccount.profile.id,
+    name: 'Weathered Concrete',
+    category: 'Architectural',
+    finish: 'Rough',
+    palette: 'Stone Grey',
+    usageLabel: 'Used in 9 assets',
+    updatedLabel: 'Synced 2h ago',
+  },
+];
+
+export const demoLightingRigs: LightingRigRecord[] = [
+  {
+    id: 'rig-midnight-showroom',
+    userId: testAccount.profile.id,
+    name: 'Midnight Showroom',
+    rigType: 'Three-point',
+    mood: 'Cinematic',
+    temperature: '4600K',
+    usageLabel: 'Used in 7 renders',
+    updatedLabel: 'Updated 12m ago',
+  },
+  {
+    id: 'rig-solar-overcast',
+    userId: testAccount.profile.id,
+    name: 'Solar Overcast',
+    rigType: 'HDRI',
+    mood: 'Neutral',
+    temperature: '6100K',
+    usageLabel: 'Used in 14 renders',
+    updatedLabel: 'Updated 39m ago',
+  },
+  {
+    id: 'rig-retail-spot-grid',
+    userId: testAccount.profile.id,
+    name: 'Retail Spot Grid',
+    rigType: 'Studio array',
+    mood: 'Product',
+    temperature: '5200K',
+    usageLabel: 'Used in 9 renders',
+    updatedLabel: 'Updated 2h ago',
+  },
+];
+
+export const defaultSettingSections: SettingSection[] = [
+  {
+    id: 'preferences',
+    title: 'Workspace Preferences',
+    description: 'Default values applied to every new generation session in local development.',
+    items: [
+      {
+        id: 'default-model',
+        label: 'Default Model',
+        value: defaultModel.shortLabel,
+        description: 'Default provider-backed model for new generations.',
+      },
+      {
+        id: 'default-output-format',
+        label: 'Default Output Format',
+        value: generationRuntimeDefaults.outputFormat.toUpperCase(),
+        description: 'Preferred format when exporting generated assets.',
+      },
+      {
+        id: 'autosave-interval',
+        label: 'Autosave Interval',
+        value: '2 minutes',
+        description: 'Local checkpoint cadence for studio edits.',
+      },
+    ],
+  },
+  {
+    id: 'generation',
+    title: 'Generation Defaults',
+    description: 'Production-minded defaults that mirror the current TRELLIS.2 setup.',
+    items: [
+      {
+        id: 'default-resolution',
+        label: 'Default Resolution',
+        value: String(defaultParameters['settings.resolution'] ?? 1024),
+        description: 'Baseline voxel resolution for new generations.',
+      },
+      {
+        id: 'default-texture-size',
+        label: 'Default Texture Size',
+        value: String(defaultParameters['settings.textureSize'] ?? 2048),
+        description: 'Baseline texture size for local image-to-3D jobs.',
+      },
+      {
+        id: 'default-decimation',
+        label: 'Default Decimation Target',
+        value: String(defaultParameters['settings.decimationTarget'] ?? 500000),
+        description: 'Baseline mesh simplification target for local output assets.',
+      },
+    ],
+  },
+  {
+    id: 'collaboration',
+    title: 'Team Controls',
+    description: 'Environment values we’ll eventually map to Supabase-backed preferences and role policies.',
+    items: [
+      {
+        id: 'review-visibility',
+        label: 'Review Visibility',
+        value: 'Workspace only',
+        description: 'Keep unfinished generations scoped to the active workspace.',
+      },
+      {
+        id: 'notification-mode',
+        label: 'Notification Mode',
+        value: 'Critical only',
+        description: 'Surface only failures and export-ready milestones in the console shell.',
+      },
+    ],
+  },
+];
+
+export function createEmptyWorkspace(user: UserProfile): WorkspaceSummary {
+  return {
+    id: `workspace-${user.id}`,
+    userId: user.id,
+    name: `${user.fullName.split(' ')[0]}'s Workspace`,
+    code: user.initials,
+    description: 'Private workspace for new account setup, iteration, and early production experiments.',
+    status: 'Primary',
+    projectCount: 0,
+    favoriteCount: 0,
+    updatedLabel: projectRecordDefaults.workspaceUpdatedLabel,
+    primaryFocus: 'New account setup',
+    secondaryFocus: 'First generation',
+    isPrimary: true,
+  };
+}

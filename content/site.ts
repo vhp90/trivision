@@ -1,0 +1,245 @@
+import {
+  Cuboid,
+  Folder,
+  History,
+  Lightbulb,
+  Star,
+  type LucideIcon,
+} from 'lucide-react';
+import { authVisualDiagnostics, runtimeDefaults, studioDefaults } from '@/lib/config/app';
+
+export const brand = {
+  name: 'Trivision',
+  uppercaseName: 'TRIVISION',
+  title: 'Trivision - Generate 3D Assets',
+  description: 'Professional-grade text-to-3D workspace directly in your browser.',
+} as const;
+
+export const landingPageContent = {
+  statusLabel: 'Engine v2.4 Online',
+  heading: {
+    primary: 'Sculpt the Virtual.',
+    secondary: 'At the Speed of Thought.',
+  },
+  description:
+    'The next-generation text-to-3D engine. Build immersive worlds, assets, and environments directly in your browser with zero context-switching.',
+  primaryCta: {
+    href: '/dashboard',
+    label: 'Launch Studio',
+  },
+  terminalLines: [
+    '> Initializing WebGL context... [OK]',
+    '> Loading neural networks... [OK]',
+    '> Awaiting user input_',
+  ],
+  footer: {
+    left: 'SYS.TRIVISION.GEN // ACTIVE',
+    right: 'STATUS: OPTIMAL',
+  },
+} as const;
+
+export const loginPageContent = {
+  title: 'Authenticate',
+  subtitle: 'Secure access to Trivision Studio Workspace',
+  form: {
+    emailLabel: 'Email Address',
+    emailPlaceholder: 'artist@studio.com',
+    passwordLabel: 'Password',
+    passwordPlaceholder: '••••••••••••',
+    submitLabel: 'Authenticate',
+  },
+  secondaryAction: {
+    label: 'Sign Up',
+    prompt: 'New to Trivision?',
+  },
+} as const;
+
+export const authShellContent = {
+  footerLabel: runtimeDefaults.authFooterLabel,
+} as const;
+
+export const authVisualContent = {
+  panelStatus: 'Local Workspace Ready',
+  panelDiagnostics: authVisualDiagnostics,
+} as const;
+
+export type DashboardNavItem = {
+  id: string;
+  label: string;
+  count?: string;
+  href: string;
+  icon: LucideIcon;
+};
+
+export const dashboardContent: {
+  searchPlaceholder: string;
+  workspaceTitle: string;
+  workspaceNav: DashboardNavItem[];
+  libraryTitle: string;
+  libraryNav: DashboardNavItem[];
+  settingsLabel: string;
+  settingsHref: string;
+  pageTitle: string;
+  filterLabel: string;
+  newGenerationLabel: string;
+  createCardLabel: string;
+} = {
+  searchPlaceholder: 'Search assets...',
+  workspaceTitle: 'Engine Workspace',
+  workspaceNav: [
+    {
+      id: 'workspaces',
+      label: 'Workspaces',
+      href: '/workspaces',
+      icon: Folder,
+    },
+    {
+      id: 'recent-generations',
+      label: 'Recent Generations',
+      href: '/recent-generations',
+      icon: History,
+    },
+    {
+      id: 'favorites',
+      label: 'Favorites',
+      href: '/favorites',
+      icon: Star,
+    },
+  ],
+  libraryTitle: 'Asset Libraries',
+  libraryNav: [
+    {
+      id: 'materials',
+      label: 'Materials',
+      href: '/materials',
+      icon: Cuboid,
+    },
+    {
+      id: 'lighting-rigs',
+      label: 'Lighting Rigs',
+      href: '/lighting-rigs',
+      icon: Lightbulb,
+    },
+  ],
+  settingsLabel: 'Settings',
+  settingsHref: '/settings',
+  pageTitle: 'Recent Projects',
+  filterLabel: 'Filter',
+  newGenerationLabel: 'New Generation',
+  createCardLabel: 'Initiate Generation',
+};
+
+export const signupPageContent = {
+  title: 'Create Account',
+  subtitle: 'Provision a local workspace account now so the app behaves like a real authenticated product before Supabase arrives.',
+  form: {
+    fullNameLabel: 'Name',
+    fullNamePlaceholder: 'Your full name',
+    emailLabel: 'Email Address',
+    emailPlaceholder: 'artist@studio.com',
+    passwordLabel: 'Password',
+    passwordPlaceholder: 'Create a strong password',
+    submitLabel: 'Create Account',
+  },
+  secondaryPrompt: 'Already have access?',
+  secondaryLabel: 'Log In',
+} as const;
+
+export const recoverKeysPageContent = {
+  title: 'Recover Keys',
+  subtitle: 'Register a recovery request locally so we can mirror the production reset workflow later.',
+  primaryLabel: 'Issue Recovery Request',
+  emailPlaceholder: 'artist@studio.com',
+  noteLabel: 'Recovery Context',
+  notePlaceholder: 'Lost my latest device token and need to restore studio access.',
+  successLabel: 'Recovery request queued for review.',
+} as const;
+
+export const collectionPageContent = {
+  workspaces: {
+    title: 'Workspaces',
+    description: 'Organize experiments, active pipelines, and review-ready batches under one consistent console shell.',
+  },
+  recent: {
+    title: 'Recent Generations',
+    description: 'Everything generated or updated recently, ordered the way production operators expect to scan it.',
+  },
+  favorites: {
+    title: 'Favorites',
+    description: 'Pinned assets that are stable enough to guide future generations, reviews, and exports.',
+  },
+  materials: {
+    title: 'Materials',
+    description: 'Reusable surface definitions ready to be attached to present and future geometry systems.',
+  },
+  lightingRigs: {
+    title: 'Lighting Rigs',
+    description: 'Lighting setups for previews, product renders, and cinematic reviews across the local workspace.',
+  },
+  settings: {
+    title: 'Settings',
+    description: 'Operational defaults we can later migrate into Supabase-backed preferences and permissions.',
+  },
+} as const;
+
+export const studioContent = {
+  statusLabel: 'Engine Ready',
+  exportLabel: 'Export',
+  panelTitle: 'Text to 3D',
+  modelLabel: 'Model',
+  promptLabel: 'Prompt',
+  clearPromptLabel: 'Clear',
+  promptPlaceholder: 'Prompt input is only sent when the selected model supports it.',
+  referenceImageLabel: 'Reference Image',
+  referenceImageTitle: 'Upload source image',
+  referenceImageHelp: 'PNG, JPG, or WEBP up to 10MB',
+  replaceImageLabel: 'Replace image',
+  generationParametersTitle: 'Generation Parameters',
+  generateLabel: 'GENERATE ASSET',
+  jobStatusTitle: 'Generation Status',
+  sourcePreviewTitle: 'Source Preview',
+  generatedPreviewTitle: 'Generated Asset',
+  disabledModelBadge: 'Unavailable',
+  emptyViewerLabel: 'No completed asset yet',
+  emptyViewerHelp: 'Upload an image and start a generation to populate the viewer with a provider-backed 3D result.',
+  loaderTitle: 'Generating Asset',
+  loaderSubtitle: 'Building mesh, texture, and export package',
+  tooltips: {
+    model: 'Select the provider-backed model you want to run.',
+    prompt: 'Only models that support prompts will send this field to the provider.',
+    sourceImage: 'Upload the reference image used for the current generation.',
+    wireframe: 'Switch to the wireframe viewport overlay.',
+    solid: 'Switch back to the solid viewport preview.',
+    cameraReset: 'Reset the viewer to the default camera framing.',
+    lighting: 'Toggle the viewport lighting intensity.',
+    download: 'Download the generated asset in its stored output format.',
+  },
+  viewerMetrics: [
+    { label: 'Tris', value: studioDefaults.emptyMetrics.tris },
+    { label: 'Verts', value: studioDefaults.emptyMetrics.verts },
+    { label: 'FPS', value: studioDefaults.emptyMetrics.fps, colorClassName: 'text-[#00E676]' },
+  ],
+  overlay: {
+    mascot: `  /\\_/\\\\
+ ( o.o )
+  > ^ <
+GENERATING`,
+    compilerTitle: 'Compiler Log',
+    lines: [
+      `> Initializing Trivision Engine ${runtimeDefaults.engineVersion}`,
+      '> Validating prompt payload...',
+      '> Preparing local workspace record...',
+      '> Allocating draft geometry buffers...',
+    ],
+    progressPrefix: '> Generating base voxel mesh',
+    progressValue: '[||||||    ] 60%',
+  },
+  propertiesTitle: 'Properties',
+  geometryTitle: 'Geometry',
+  scaleLabels: ['Scale X', 'Scale Y', 'Scale Z'],
+  scaleValue: '1.000',
+  autoUvLabel: 'Auto-UV Unwrap',
+  materialsTitle: 'Materials',
+  environmentTitle: 'Environment',
+  exportConfigTitle: 'Export Config',
+} as const;

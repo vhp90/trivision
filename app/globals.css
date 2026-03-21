@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #f5a524;
+  --color-primary-hover: #d48b1a;
+  --color-background-light: #f8f7f5;
+  --color-background-dark: #09090A;
+  --color-surface: #18181A;
+  --color-surface-hover: #27272A;
+  --color-border-muted: #333336;
+  --color-text-main: #EDEDED;
+  --color-text-muted: #8E8E93;
+  --color-error: #FF3B30;
+  --color-success: #00E676;
+
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
+
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-full: 9999px;
+}
+
+@layer utilities {
+  .bg-grid-pattern {
+    background-size: 40px 40px;
+    background-image: 
+        linear-gradient(to right, #333336 1px, transparent 1px),
+        linear-gradient(to bottom, #333336 1px, transparent 1px);
+    background-position: center bottom;
+    transform: perspective(500px) rotateX(60deg) scale(2);
+    transform-origin: bottom center;
+  }
+  
+  .hero-gradient {
+    background: radial-gradient(circle at center, rgba(24, 24, 26, 0.8) 0%, rgba(9, 9, 10, 1) 70%);
+  }
+
+  .wireframe-bg {
+    background-image: 
+        linear-gradient(to right, #333336 1px, transparent 1px),
+        linear-gradient(to bottom, #333336 1px, transparent 1px);
+    background-size: 50px 50px;
+    opacity: 0.1;
+    transform: perspective(500px) rotateX(60deg);
+    transform-origin: center top;
+  }
+  
+  .render-bg {
+    background: radial-gradient(circle at 70% 50%, #1a150c 0%, #09090A 60%);
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .render-bg::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: 
+        linear-gradient(rgba(51, 51, 54, 0.3) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(51, 51, 54, 0.3) 1px, transparent 1px);
+    background-size: 40px 40px;
+    transform: perspective(500px) rotateX(60deg) translateY(-100px) translateZ(-200px);
+    transform-origin: center top;
+    opacity: 0.4;
+  }
+}

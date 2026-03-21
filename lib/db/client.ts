@@ -1,0 +1,486 @@
+import { mkdir } from 'node:fs/promises';
+import path from 'node:path';
+import { createClient } from '@libsql/client';
+import { hashPassword } from '@/lib/auth/password';
+import {
+  createEmptyWorkspace,
+  defaultSettingSections,
+  demoLightingRigs,
+  demoMaterials,
+  demoProjects,
+  demoWorkspaces,
+  testAccount,
+} from '@/lib/db/seed';
+import type {
+  LightingRigRecord,
+  MaterialRecord,
+  ProjectRecord,
+  SettingSection,
+  UserProfile,
+  WorkspaceSummary,
+} from '@/lib/db/types';
+
+const SCHEMA_VERSION = '3';
+const dataDirectory = path.join(process.cwd(), 'data');
+const databasePath = path.join(dataDirectory, 'trivision.local.db');
+const databaseUrl = `file:${databasePath}`;
+
+let initializationPromise: Promise<void> | null = null;
+let client: ReturnType<typeof createClient> | null = null;
+
+function getClientInstance() {
+  if (!client) {
+    client = createClient({
+      url: databaseUrl,
+    });
+  }
+
+  return client;
+}
+
+async function insertUser(clientInstance: ReturnType<typeof createClient>, user: UserProfile, passwordHash: string) {
+  await clientInstance.execute({
+    sql: `
+      INSERT INTO users (
+        id, email, password_hash, full_name, initials, role_label, region,
+        latency_label, session_label, engine_version, unread_notifications
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    args: [
+      user.id,
+      user.email,
+      passwordHash,
+      user.fullName,
+      user.initials,
+      user.roleLabel,
+      user.region,
+      user.latencyLabel,
+      user.sessionLabel,
+      user.engineVersion,
+      user.unreadNotifications,
+    ],
+  });
+}
+
+async function insertWorkspace(clientInstance: ReturnType<typeof createClient>, workspace: WorkspaceSummary) {
+  await clientInstance.execute({
+    sql: `
+      INSERT INTO workspaces (
+        id, user_id, name, code, description, status, project_count, favorite_count,
+        updated_label, primary_focus, secondary_focus, is_primary
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    args: [
+      workspace.id,
+      workspace.userId,
+      workspace.name,
+      workspace.code,
+      workspace.description,
+      workspace.status,
+      workspace.projectCount,
+      workspace.favoriteCount,
+      workspace.updatedLabel,
+      workspace.primaryFocus,
+      workspace.secondaryFocus,
+      workspace.isPrimary ? 1 : 0,
+    ],
+  });
+}
+
+async function insertProject(
+  clientInstance: ReturnType<typeof createClient>,
+  project: ProjectRecord,
+  sortOrder: number,
+) {
+  await clientInstance.execute({
+    sql: `
+      INSERT INTO projects (
+        id, user_id, workspace_id, workspace_name, name, format, updated_label, tris_label, visual,
+        prompt, seed, resolution, creativity, detail_level, tri_count, vert_count, fps, auto_save_label,
+        is_favorite, is_recent, sort_order, generation_status, provider_id, model_id, generation_job_id,
+        parameter_values_json, source_image_path, output_asset_path, output_format, error_message, submitted_at, completed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    args: [
+      project.id,
+      project.userId,
+      project.workspaceId,
+      project.workspaceName,
+      project.name,
+      project.format,
+      project.updatedLabel,
+      project.trisLabel,
+      project.visual,
+      project.prompt,
+      project.seed,
+      project.resolution,
+      project.creativity,
+      project.detailLevel,
+      project.triCount,
+      project.vertCount,
+      project.fps,
+      project.autoSaveLabel,
+      project.isFavorite ? 1 : 0,
+      project.isRecent ? 1 : 0,
+      sortOrder,
+      project.status,
+      project.providerId,
+      project.modelId,
+      project.generationJobId,
+      JSON.stringify(project.parameterValues),
+      project.sourceImagePath,
+      project.outputAssetPath,
+      project.outputFormat,
+      project.errorMessage,
+      project.submittedAt,
+      project.completedAt,
+    ],
+  });
+}
+
+async function insertMaterial(clientInstance: ReturnType<typeof createClient>, material: MaterialRecord) {
+  await clientInstance.execute({
+    sql: `
+      INSERT INTO materials (
+        id, user_id, name, category, finish, palette, usage_label, updated_label
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    args: [
+      material.id,
+      material.userId,
+      material.name,
+      material.category,
+      material.finish,
+      material.palette,
+      material.usageLabel,
+      material.updatedLabel,
+    ],
+  });
+}
+
+async function insertLightingRig(clientInstance: ReturnType<typeof createClient>, lightingRig: LightingRigRecord) {
+  await clientInstance.execute({
+    sql: `
+      INSERT INTO lighting_rigs (
+        id, user_id, name, rig_type, mood, temperature, usage_label, updated_label
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    args: [
+      lightingRig.id,
+      lightingRig.userId,
+      lightingRig.name,
+      lightingRig.rigType,
+      lightingRig.mood,
+      lightingRig.temperature,
+      lightingRig.usageLabel,
+      lightingRig.updatedLabel,
+    ],
+  });
+}
+
+async function insertSettingSections(
+  clientInstance: ReturnType<typeof createClient>,
+  userId: string,
+  sections: SettingSection[],
+) {
+  for (const section of sections) {
+    for (const item of section.items) {
+      await clientInstance.execute({
+        sql: `
+          INSERT INTO settings (
+            id, user_id, section_id, section_title, section_description, label, value, description
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        args: [
+          `${userId}-${item.id}`,
+          userId,
+          section.id,
+          section.title,
+          section.description,
+          item.label,
+          item.value,
+          item.description,
+        ],
+      });
+    }
+  }
+}
+
+async function bootstrapUserData(
+  clientInstance: ReturnType<typeof createClient>,
+  user: UserProfile,
+  options: { includeDemoData: boolean },
+) {
+  if (options.includeDemoData) {
+    for (const workspace of demoWorkspaces) {
+      await insertWorkspace(clientInstance, workspace);
+    }
+
+    for (const [index, project] of demoProjects.entries()) {
+      await insertProject(clientInstance, project, index + 1);
+    }
+
+    for (const material of demoMaterials) {
+      await insertMaterial(clientInstance, material);
+    }
+
+    for (const lightingRig of demoLightingRigs) {
+      await insertLightingRig(clientInstance, lightingRig);
+    }
+
+    await insertSettingSections(clientInstance, user.id, defaultSettingSections);
+    return;
+  }
+
+  await insertWorkspace(clientInstance, createEmptyWorkspace(user));
+  await insertSettingSections(clientInstance, user.id, defaultSettingSections);
+}
+
+async function seedDatabase() {
+  const clientInstance = getClientInstance();
+  const passwordHash = hashPassword(testAccount.password);
+
+  await insertUser(clientInstance, testAccount.profile, passwordHash);
+  await bootstrapUserData(clientInstance, testAccount.profile, { includeDemoData: true });
+}
+
+async function resetSchema(clientInstance: ReturnType<typeof createClient>) {
+  await clientInstance.batch(
+    [
+      { sql: 'DROP TABLE IF EXISTS generation_jobs' },
+      { sql: 'DROP TABLE IF EXISTS sessions' },
+      { sql: 'DROP TABLE IF EXISTS settings' },
+      { sql: 'DROP TABLE IF EXISTS lighting_rigs' },
+      { sql: 'DROP TABLE IF EXISTS materials' },
+      { sql: 'DROP TABLE IF EXISTS projects' },
+      { sql: 'DROP TABLE IF EXISTS workspaces' },
+      { sql: 'DROP TABLE IF EXISTS support_requests' },
+      { sql: 'DROP TABLE IF EXISTS users' },
+      { sql: 'DROP TABLE IF EXISTS app_meta' },
+    ],
+    'write',
+  );
+}
+
+async function initializeDatabase() {
+  await mkdir(dataDirectory, { recursive: true });
+  const clientInstance = getClientInstance();
+
+  await clientInstance.execute(`
+    CREATE TABLE IF NOT EXISTS app_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+
+  const versionResult = await clientInstance.execute({
+    sql: 'SELECT value FROM app_meta WHERE key = ? LIMIT 1',
+    args: ['schema_version'],
+  });
+
+  const currentVersion = versionResult.rows[0]?.value ? String(versionResult.rows[0].value) : null;
+
+  if (currentVersion !== SCHEMA_VERSION) {
+    await resetSchema(clientInstance);
+  }
+
+  await clientInstance.batch(
+    [
+      {
+        sql: `
+          CREATE TABLE IF NOT EXISTS app_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+          )
+        `,
+      },
+      {
+        sql: `
+          CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            email TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            full_name TEXT NOT NULL,
+            initials TEXT NOT NULL,
+            role_label TEXT NOT NULL,
+            region TEXT NOT NULL,
+            latency_label TEXT NOT NULL,
+            session_label TEXT NOT NULL,
+            engine_version TEXT NOT NULL,
+            unread_notifications INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+          )
+        `,
+      },
+      {
+        sql: `
+          CREATE TABLE IF NOT EXISTS sessions (
+            token TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+          )
+        `,
+      },
+      {
+        sql: `
+          CREATE TABLE IF NOT EXISTS workspaces (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            code TEXT NOT NULL,
+            description TEXT NOT NULL,
+            status TEXT NOT NULL,
+            project_count INTEGER NOT NULL,
+            favorite_count INTEGER NOT NULL,
+            updated_label TEXT NOT NULL,
+            primary_focus TEXT NOT NULL,
+            secondary_focus TEXT NOT NULL,
+            is_primary INTEGER NOT NULL DEFAULT 0
+          )
+        `,
+      },
+      {
+        sql: `
+          CREATE TABLE IF NOT EXISTS projects (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            workspace_id TEXT NOT NULL,
+            workspace_name TEXT NOT NULL,
+            name TEXT NOT NULL,
+            format TEXT,
+            updated_label TEXT NOT NULL,
+            tris_label TEXT NOT NULL,
+            visual TEXT NOT NULL,
+            prompt TEXT NOT NULL,
+            seed TEXT NOT NULL,
+            resolution TEXT NOT NULL,
+            creativity INTEGER NOT NULL,
+            detail_level TEXT NOT NULL,
+            tri_count TEXT NOT NULL,
+            vert_count TEXT NOT NULL,
+            fps TEXT NOT NULL,
+            auto_save_label TEXT NOT NULL,
+            is_favorite INTEGER NOT NULL DEFAULT 0,
+            is_recent INTEGER NOT NULL DEFAULT 1,
+            sort_order INTEGER NOT NULL DEFAULT 999,
+            generation_status TEXT NOT NULL DEFAULT 'succeeded',
+            provider_id TEXT,
+            model_id TEXT,
+            generation_job_id TEXT,
+            parameter_values_json TEXT NOT NULL DEFAULT '{}',
+            source_image_path TEXT,
+            output_asset_path TEXT,
+            output_format TEXT,
+            error_message TEXT,
+            submitted_at TEXT,
+            completed_at TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+          )
+        `,
+      },
+      {
+        sql: `
+          CREATE TABLE IF NOT EXISTS generation_jobs (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            provider_id TEXT NOT NULL,
+            model_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            provider_task_id TEXT,
+            request_payload_json TEXT NOT NULL,
+            response_payload_json TEXT,
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            error_message TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            started_at TEXT,
+            completed_at TEXT
+          )
+        `,
+      },
+      {
+        sql: `
+          CREATE TABLE IF NOT EXISTS materials (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            category TEXT NOT NULL,
+            finish TEXT NOT NULL,
+            palette TEXT NOT NULL,
+            usage_label TEXT NOT NULL,
+            updated_label TEXT NOT NULL
+          )
+        `,
+      },
+      {
+        sql: `
+          CREATE TABLE IF NOT EXISTS lighting_rigs (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            rig_type TEXT NOT NULL,
+            mood TEXT NOT NULL,
+            temperature TEXT NOT NULL,
+            usage_label TEXT NOT NULL,
+            updated_label TEXT NOT NULL
+          )
+        `,
+      },
+      {
+        sql: `
+          CREATE TABLE IF NOT EXISTS settings (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            section_id TEXT NOT NULL,
+            section_title TEXT NOT NULL,
+            section_description TEXT NOT NULL,
+            label TEXT NOT NULL,
+            value TEXT NOT NULL,
+            description TEXT NOT NULL
+          )
+        `,
+      },
+      {
+        sql: `
+          CREATE TABLE IF NOT EXISTS support_requests (
+            id TEXT PRIMARY KEY,
+            email TEXT NOT NULL,
+            note TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+          )
+        `,
+      },
+      {
+        sql: `
+          INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_version', '${SCHEMA_VERSION}')
+        `,
+      },
+    ],
+    'write',
+  );
+
+  const userCountResult = await clientInstance.execute('SELECT COUNT(*) AS count FROM users');
+  const userCount = Number(userCountResult.rows[0]?.count ?? 0);
+
+  if (userCount === 0) {
+    await seedDatabase();
+  }
+}
+
+export async function getDatabaseClient() {
+  if (!initializationPromise) {
+    initializationPromise = initializeDatabase();
+  }
+
+  await initializationPromise;
+  return getClientInstance();
+}
+
+export async function provisionNewUser(user: UserProfile, passwordHash: string) {
+  const clientInstance = await getDatabaseClient();
+  await insertUser(clientInstance, user, passwordHash);
+  await bootstrapUserData(clientInstance, user, { includeDemoData: false });
+}
