@@ -22,7 +22,7 @@ export default async function FavoritesPage() {
       title={collectionPageContent.favorites.title}
       description={collectionPageContent.favorites.description}
       actions={
-        <Link href="/dashboard" className="h-9 px-4 flex items-center justify-center gap-2 border border-border-muted bg-surface text-text-main text-sm font-body hover:bg-surface-hover hover:border-primary/50 transition-colors">
+        <Link prefetch={false} href="/dashboard" className="h-9 px-4 flex items-center justify-center gap-2 border border-border-muted bg-surface text-text-main text-sm font-body hover:bg-surface-hover hover:border-primary/50 transition-colors">
           <Star className="w-4 h-4" />
           Back to Dashboard
         </Link>

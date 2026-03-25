@@ -5,6 +5,7 @@ export type GenerationJobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
 export type GenerationParameterType = 'number' | 'boolean' | 'select';
 export type GenerationParameterValue = boolean | number | string;
 export type GenerationParameterValueMap = Record<string, GenerationParameterValue>;
+export type SegmentationPromptMode = 'positive-point' | 'negative-point' | 'box';
 
 export type GenerationCapability = {
   inputKinds: GenerationInputKind[];
@@ -44,6 +45,11 @@ export type GenerationModelDefinition = {
   primaryInputDescription: string;
   promptHelperText: string;
   parameters: GenerationParameterDefinition[];
+  segmentationSupport?: {
+    engine: 'mobile-sam';
+    required: boolean;
+    promptModes: SegmentationPromptMode[];
+  };
 };
 
 export type GenerationRequestPayload = {

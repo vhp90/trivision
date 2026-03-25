@@ -26,9 +26,16 @@ export const authVisualDiagnostics = [
 export const generationRuntimeDefaults = {
   outputFormat: 'glb',
   pollIntervalMs: 3000,
-  maxPollAttempts: 40,
   viewerExposure: '1',
   viewerEnvironmentImage: 'neutral',
+} as const;
+
+export const mobileSamRuntimeDefaults = {
+  encoderModelPath: '/models/mobilesam.encoder.onnx',
+  decoderModelPath: '/models/mobilesam.decoder.quant.onnx',
+  wasmBasePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/',
+  targetLongestSide: 1024,
+  maxUploadBytes: 10 * 1024 * 1024,
 } as const;
 
 export const studioDefaults = {

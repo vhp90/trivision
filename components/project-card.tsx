@@ -31,14 +31,28 @@ export function ProjectCard({ project }: { project: ProjectRecord }) {
   const visual = projectVisuals[project.visual];
   const Icon = visual.Icon;
   const statusLabel = studioDefaults.jobStatusLabels[project.status];
+  const sourcePreviewUrl = project.sourceImagePath ? `/api/projects/${project.id}/asset?kind=source` : null;
 
   return (
-    <Link href={`/studio?projectId=${project.id}`} className="group flex flex-col w-full bg-surface border border-border-muted hover:border-primary transition-colors cursor-pointer">
+    <Link prefetch={false} href={`/studio?projectId=${project.id}`} className="group flex flex-col w-full bg-surface border border-border-muted hover:border-primary transition-colors cursor-pointer">
       <div className="w-full aspect-square relative overflow-hidden bg-background-dark border-b border-border-muted p-4 flex items-center justify-center">
-        <div className={visual.containerClassName}>
-          <div className={visual.overlayClassName}></div>
-          <Icon className="w-10 h-10 text-text-muted group-hover:text-primary transition-colors duration-300 z-10" />
-        </div>
+        {sourcePreviewUrl ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={sourcePreviewUrl}
+              alt={project.name}
+              loading="lazy"
+              className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-background-dark/90 via-background-dark/15 to-transparent"></div>
+          </>
+        ) : (
+          <div className={visual.containerClassName}>
+            <div className={visual.overlayClassName}></div>
+            <Icon className="w-10 h-10 text-text-muted group-hover:text-primary transition-colors duration-300 z-10" />
+          </div>
+        )}
         {project.format ? (
           <div className="absolute top-2 right-2 flex gap-1">
             <span className="bg-background-dark/80 backdrop-blur text-[10px] font-mono text-primary px-1.5 py-0.5 border border-border-muted">{project.format}</span>
@@ -63,7 +77,7 @@ export function ProjectCard({ project }: { project: ProjectRecord }) {
 
 export function CreateProjectCard() {
   return (
-    <Link href="/studio" className="group w-full aspect-square bg-surface/50 border border-dashed border-border-muted flex flex-col items-center justify-center gap-3 hover:border-primary hover:bg-surface-hover/50 transition-all duration-300">
+    <Link prefetch={false} href="/studio" className="group w-full aspect-square bg-surface/50 border border-dashed border-border-muted flex flex-col items-center justify-center gap-3 hover:border-primary hover:bg-surface-hover/50 transition-all duration-300">
       <div className="w-12 h-12 rounded-full bg-surface border border-border-muted flex items-center justify-center group-hover:bg-primary group-hover:border-primary group-hover:text-background-dark text-text-muted transition-all duration-300">
         <Plus className="w-6 h-6" />
       </div>

@@ -15,7 +15,7 @@ export function AuthShell({ title, subtitle, children }: AuthShellProps) {
     <div className="h-screen w-full overflow-hidden flex">
       <div className="w-full md:w-[30%] min-w-[320px] md:min-w-[400px] max-w-[500px] h-full bg-surface flex flex-col border-r border-border-muted relative z-10 flex-shrink-0">
         <div className="h-16 flex items-center px-8 border-b border-border-muted">
-          <Link href="/" className="flex items-center gap-2 text-primary">
+          <Link href="/" prefetch={false} className="flex items-center gap-2 text-primary">
             <Box className="w-6 h-6" />
             <span className="font-display font-bold tracking-tight text-lg text-text-main">{brand.uppercaseName}</span>
           </Link>

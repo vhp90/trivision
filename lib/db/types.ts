@@ -61,6 +61,7 @@ export type ProjectRecord = {
   generationJobId: string | null;
   parameterValues: GenerationParameterValueMap;
   sourceImagePath: string | null;
+  maskImagePath: string | null;
   outputAssetPath: string | null;
   outputFormat: string | null;
   errorMessage: string | null;
@@ -68,30 +69,9 @@ export type ProjectRecord = {
   completedAt: string | null;
 };
 
-export type MaterialRecord = {
-  id: string;
-  userId: string;
-  name: string;
-  category: string;
-  finish: string;
-  palette: string;
-  usageLabel: string;
-  updatedLabel: string;
-};
-
-export type LightingRigRecord = {
-  id: string;
-  userId: string;
-  name: string;
-  rigType: string;
-  mood: string;
-  temperature: string;
-  usageLabel: string;
-  updatedLabel: string;
-};
-
 export type SettingItem = {
   id: string;
+  key?: string;
   label: string;
   value: string;
   description: string;
@@ -106,13 +86,6 @@ export type SettingSection = {
 
 export type ShellSummary = {
   user: UserProfile;
-  materialCount: number;
-  lightingRigCount: number;
-};
-
-export type SupportRequestPayload = {
-  email: string;
-  note: string;
 };
 
 export type SignupPayload = {

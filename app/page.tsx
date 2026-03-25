@@ -50,8 +50,8 @@ export default function LandingPage() {
           <h1 className="font-display font-bold text-lg tracking-tight text-text-main">{brand.name}</h1>
         </div>
         <nav className="flex items-center gap-6 font-mono text-xs">
-          <Link href="/login" className="text-text-muted hover:text-text-main transition-colors uppercase tracking-widest">Login</Link>
-          <Link href="/signup" className="text-primary hover:text-primary-hover transition-colors uppercase tracking-widest border border-primary/30 px-4 py-2 hover:border-primary">Sign Up</Link>
+          <Link prefetch={false} href="/login" className="text-text-muted hover:text-text-main transition-colors uppercase tracking-widest">Login</Link>
+          <Link prefetch={false} href="/signup" className="text-primary hover:text-primary-hover transition-colors uppercase tracking-widest border border-primary/30 px-4 py-2 hover:border-primary">Sign Up</Link>
         </nav>
       </header>
 
@@ -123,7 +123,7 @@ export default function LandingPage() {
           </p>
           
           <div className="pointer-events-auto">
-            <Link href={landingPageContent.primaryCta.href} className="h-12 px-8 bg-primary hover:bg-primary-hover hover:shadow-[0_0_15px_rgba(245,166,35,0.3)] transition-all text-background-dark font-display font-medium text-[15px] uppercase tracking-wider flex items-center justify-center gap-3 w-full max-w-[280px]">
+            <Link prefetch={false} href={landingPageContent.primaryCta.href} className="h-12 px-8 bg-primary hover:bg-primary-hover hover:shadow-[0_0_15px_rgba(245,166,35,0.3)] transition-all text-background-dark font-display font-medium text-[15px] uppercase tracking-wider flex items-center justify-center gap-3 w-full max-w-[280px]">
               <Rocket className="w-5 h-5" />
               {landingPageContent.primaryCta.label}
             </Link>

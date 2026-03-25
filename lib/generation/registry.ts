@@ -223,8 +223,7 @@ export const generationModels: GenerationModelDefinition[] = [
     label: 'SAM 3D Objects',
     shortLabel: 'SAM 3D',
     description: 'Single-image 3D reconstruction with mask-guided object extraction.',
-    availability: 'disabled',
-    disabledReason: 'Mask input support is planned next. This model stays visible so the form can explain why it is unavailable.',
+    availability: 'enabled',
     capabilities: {
       inputKinds: ['image', 'mask'],
       promptSupport: 'optional',
@@ -233,7 +232,12 @@ export const generationModels: GenerationModelDefinition[] = [
     defaultOutputFormat: 'glb',
     primaryInputLabel: 'Object Image',
     primaryInputDescription: 'Requires both an RGB image and a matching object mask.',
-    promptHelperText: 'SAM 3D accepts an optional descriptive prompt, but the model is blocked until mask upload is implemented.',
+    promptHelperText: 'SAM 3D accepts an optional descriptive prompt. Create a MobileSAM mask from the uploaded image before generating.',
+    segmentationSupport: {
+      engine: 'mobile-sam',
+      required: true,
+      promptModes: ['positive-point', 'negative-point', 'box'],
+    },
     parameters: [
       parameter({
         key: 'seed',

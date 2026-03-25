@@ -17,7 +17,9 @@ export async function POST(request: Request) {
   const sourceProjectId = String(formData.get('sourceProjectId') ?? '').trim() || null;
   const rawParameters = String(formData.get('parameters') ?? '{}');
   const sourceFileValue = formData.get('sourceImage');
+  const maskFileValue = formData.get('maskImage');
   const sourceFile = sourceFileValue instanceof File ? sourceFileValue : null;
+  const maskFile = maskFileValue instanceof File ? maskFileValue : null;
 
   if (!modelId) {
     return NextResponse.json({ message: 'A generation model is required.' }, { status: 400 });
@@ -42,6 +44,7 @@ export async function POST(request: Request) {
       outputFormat,
       parameterValues,
       sourceFile,
+      maskFile,
       sourceProjectId,
     });
 

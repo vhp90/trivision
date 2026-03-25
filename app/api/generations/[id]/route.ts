@@ -33,6 +33,7 @@ export async function GET(_: Request, { params }: GenerationStatusRouteProps) {
     project,
     assets: {
       sourceImageUrl: project.sourceImagePath ? `/api/projects/${project.id}/asset?kind=source` : null,
+      maskImageUrl: project.maskImagePath ? `/api/projects/${project.id}/asset?kind=mask` : null,
       outputAssetUrl: project.outputAssetPath ? `/api/projects/${project.id}/asset?kind=output` : null,
     },
   });

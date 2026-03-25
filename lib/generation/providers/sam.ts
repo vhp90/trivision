@@ -8,6 +8,8 @@ import type {
   Runware3DRequest,
 } from '@/lib/generation/types';
 
+const RUNWARE_BLANK_PROMPT = '__BLANK__';
+
 function normalizeRunware3DResult(rawResponse: unknown, taskUUID: string): NormalizedGenerationResult {
   const taskResult = findTaskResult(rawResponse, taskUUID);
 
@@ -60,6 +62,7 @@ function buildRequest(
   }
 
   const seed = getNumberParameter(context.input.parameterValues, 'seed');
+  const positivePrompt = context.input.prompt.trim() || RUNWARE_BLANK_PROMPT;
 
   return {
     taskType: '3dInference',
@@ -69,7 +72,7 @@ function buildRequest(
       image: inputImageUuid,
       mask: maskImageUuid,
     },
-    positivePrompt: context.input.prompt.trim() || undefined,
+    positivePrompt,
     outputFormat: context.input.outputFormat,
     seed: seed ?? undefined,
   };

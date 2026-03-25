@@ -5,22 +5,18 @@ import { hashPassword } from '@/lib/auth/password';
 import {
   createEmptyWorkspace,
   defaultSettingSections,
-  demoLightingRigs,
-  demoMaterials,
   demoProjects,
   demoWorkspaces,
   testAccount,
 } from '@/lib/db/seed';
 import type {
-  LightingRigRecord,
-  MaterialRecord,
   ProjectRecord,
   SettingSection,
   UserProfile,
   WorkspaceSummary,
 } from '@/lib/db/types';
 
-const SCHEMA_VERSION = '3';
+const SCHEMA_VERSION = '4';
 const dataDirectory = path.join(process.cwd(), 'data');
 const databasePath = path.join(dataDirectory, 'trivision.local.db');
 const databaseUrl = `file:${databasePath}`;
@@ -98,8 +94,8 @@ async function insertProject(
         id, user_id, workspace_id, workspace_name, name, format, updated_label, tris_label, visual,
         prompt, seed, resolution, creativity, detail_level, tri_count, vert_count, fps, auto_save_label,
         is_favorite, is_recent, sort_order, generation_status, provider_id, model_id, generation_job_id,
-        parameter_values_json, source_image_path, output_asset_path, output_format, error_message, submitted_at, completed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        parameter_values_json, source_image_path, mask_image_path, output_asset_path, output_format, error_message, submitted_at, completed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     args: [
       project.id,
@@ -129,51 +125,12 @@ async function insertProject(
       project.generationJobId,
       JSON.stringify(project.parameterValues),
       project.sourceImagePath,
+      project.maskImagePath,
       project.outputAssetPath,
       project.outputFormat,
       project.errorMessage,
       project.submittedAt,
       project.completedAt,
-    ],
-  });
-}
-
-async function insertMaterial(clientInstance: ReturnType<typeof createClient>, material: MaterialRecord) {
-  await clientInstance.execute({
-    sql: `
-      INSERT INTO materials (
-        id, user_id, name, category, finish, palette, usage_label, updated_label
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `,
-    args: [
-      material.id,
-      material.userId,
-      material.name,
-      material.category,
-      material.finish,
-      material.palette,
-      material.usageLabel,
-      material.updatedLabel,
-    ],
-  });
-}
-
-async function insertLightingRig(clientInstance: ReturnType<typeof createClient>, lightingRig: LightingRigRecord) {
-  await clientInstance.execute({
-    sql: `
-      INSERT INTO lighting_rigs (
-        id, user_id, name, rig_type, mood, temperature, usage_label, updated_label
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `,
-    args: [
-      lightingRig.id,
-      lightingRig.userId,
-      lightingRig.name,
-      lightingRig.rigType,
-      lightingRig.mood,
-      lightingRig.temperature,
-      lightingRig.usageLabel,
-      lightingRig.updatedLabel,
     ],
   });
 }
@@ -220,14 +177,6 @@ async function bootstrapUserData(
       await insertProject(clientInstance, project, index + 1);
     }
 
-    for (const material of demoMaterials) {
-      await insertMaterial(clientInstance, material);
-    }
-
-    for (const lightingRig of demoLightingRigs) {
-      await insertLightingRig(clientInstance, lightingRig);
-    }
-
     await insertSettingSections(clientInstance, user.id, defaultSettingSections);
     return;
   }
@@ -250,11 +199,8 @@ async function resetSchema(clientInstance: ReturnType<typeof createClient>) {
       { sql: 'DROP TABLE IF EXISTS generation_jobs' },
       { sql: 'DROP TABLE IF EXISTS sessions' },
       { sql: 'DROP TABLE IF EXISTS settings' },
-      { sql: 'DROP TABLE IF EXISTS lighting_rigs' },
-      { sql: 'DROP TABLE IF EXISTS materials' },
       { sql: 'DROP TABLE IF EXISTS projects' },
       { sql: 'DROP TABLE IF EXISTS workspaces' },
-      { sql: 'DROP TABLE IF EXISTS support_requests' },
       { sql: 'DROP TABLE IF EXISTS users' },
       { sql: 'DROP TABLE IF EXISTS app_meta' },
     ],
@@ -370,6 +316,7 @@ async function initializeDatabase() {
             generation_job_id TEXT,
             parameter_values_json TEXT NOT NULL DEFAULT '{}',
             source_image_path TEXT,
+            mask_image_path TEXT,
             output_asset_path TEXT,
             output_format TEXT,
             error_message TEXT,
@@ -402,34 +349,6 @@ async function initializeDatabase() {
       },
       {
         sql: `
-          CREATE TABLE IF NOT EXISTS materials (
-            id TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            category TEXT NOT NULL,
-            finish TEXT NOT NULL,
-            palette TEXT NOT NULL,
-            usage_label TEXT NOT NULL,
-            updated_label TEXT NOT NULL
-          )
-        `,
-      },
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS lighting_rigs (
-            id TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            rig_type TEXT NOT NULL,
-            mood TEXT NOT NULL,
-            temperature TEXT NOT NULL,
-            usage_label TEXT NOT NULL,
-            updated_label TEXT NOT NULL
-          )
-        `,
-      },
-      {
-        sql: `
           CREATE TABLE IF NOT EXISTS settings (
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL,
@@ -439,17 +358,6 @@ async function initializeDatabase() {
             label TEXT NOT NULL,
             value TEXT NOT NULL,
             description TEXT NOT NULL
-          )
-        `,
-      },
-      {
-        sql: `
-          CREATE TABLE IF NOT EXISTS support_requests (
-            id TEXT PRIMARY KEY,
-            email TEXT NOT NULL,
-            note TEXT NOT NULL,
-            status TEXT NOT NULL,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
         `,
       },

@@ -22,7 +22,11 @@ export async function GET(request: Request, { params }: ProjectAssetRouteProps) 
   const requestedKind = url.searchParams.get('kind');
   const shouldDownload = url.searchParams.get('download') === '1';
   const requestedFilename = url.searchParams.get('filename');
-  const kind = requestedKind === 'source' ? 'source' : 'output';
+  const kind = requestedKind === 'source'
+    ? 'source'
+    : requestedKind === 'mask'
+      ? 'mask'
+      : 'output';
   const relativePath = await getProjectFilePathForUser({
     userId: user.id,
     projectId: routeParams.projectId,

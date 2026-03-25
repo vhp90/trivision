@@ -21,7 +21,7 @@ export default async function WorkspacesPage() {
       title={collectionPageContent.workspaces.title}
       description={collectionPageContent.workspaces.description}
       actions={
-        <Link href="/studio" className="h-9 px-4 flex items-center justify-center gap-2 bg-primary text-background-dark text-sm font-display font-bold hover:bg-primary-hover transition-colors">
+        <Link prefetch={false} href="/studio" className="h-9 px-4 flex items-center justify-center gap-2 bg-primary text-background-dark text-sm font-display font-bold hover:bg-primary-hover transition-colors">
           <Plus className="w-4 h-4" />
           New Generation
         </Link>
@@ -62,7 +62,7 @@ export default async function WorkspacesPage() {
                 <span className="text-primary">{workspace.updatedLabel}</span>
               </div>
             </div>
-            <Link href="/dashboard" className="mt-auto h-10 border border-border-muted bg-background-dark hover:border-primary hover:text-primary transition-colors text-sm font-body text-text-main flex items-center justify-center gap-2">
+            <Link prefetch={false} href="/dashboard" className="mt-auto h-10 border border-border-muted bg-background-dark hover:border-primary hover:text-primary transition-colors text-sm font-body text-text-main flex items-center justify-center gap-2">
               <FolderOpen className="w-4 h-4" />
               Open Workspace
             </Link>

@@ -1,9 +1,10 @@
 import {
-  Cuboid,
   Folder,
   History,
-  Lightbulb,
+  LayoutDashboard,
+  Settings,
   Star,
+  UserRound,
   type LucideIcon,
 } from 'lucide-react';
 import { authVisualDiagnostics, runtimeDefaults, studioDefaults } from '@/lib/config/app';
@@ -72,21 +73,22 @@ export type DashboardNavItem = {
 };
 
 export const dashboardContent: {
-  searchPlaceholder: string;
   workspaceTitle: string;
   workspaceNav: DashboardNavItem[];
-  libraryTitle: string;
-  libraryNav: DashboardNavItem[];
-  settingsLabel: string;
-  settingsHref: string;
+  accountTitle: string;
+  accountNav: DashboardNavItem[];
   pageTitle: string;
-  filterLabel: string;
   newGenerationLabel: string;
   createCardLabel: string;
 } = {
-  searchPlaceholder: 'Search assets...',
-  workspaceTitle: 'Engine Workspace',
+  workspaceTitle: 'Workspace',
   workspaceNav: [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      href: '/dashboard',
+      icon: LayoutDashboard,
+    },
     {
       id: 'workspaces',
       label: 'Workspaces',
@@ -106,27 +108,24 @@ export const dashboardContent: {
       icon: Star,
     },
   ],
-  libraryTitle: 'Asset Libraries',
-  libraryNav: [
+  accountTitle: 'Account',
+  accountNav: [
     {
-      id: 'materials',
-      label: 'Materials',
-      href: '/materials',
-      icon: Cuboid,
+      id: 'profile',
+      label: 'Profile',
+      href: '/profile',
+      icon: UserRound,
     },
     {
-      id: 'lighting-rigs',
-      label: 'Lighting Rigs',
-      href: '/lighting-rigs',
-      icon: Lightbulb,
+      id: 'settings',
+      label: 'Settings',
+      href: '/settings',
+      icon: Settings,
     },
   ],
-  settingsLabel: 'Settings',
-  settingsHref: '/settings',
   pageTitle: 'Recent Projects',
-  filterLabel: 'Filter',
   newGenerationLabel: 'New Generation',
-  createCardLabel: 'Initiate Generation',
+  createCardLabel: 'Start Generation',
 };
 
 export const signupPageContent = {
@@ -145,16 +144,6 @@ export const signupPageContent = {
   secondaryLabel: 'Log In',
 } as const;
 
-export const recoverKeysPageContent = {
-  title: 'Recover Keys',
-  subtitle: 'Register a recovery request locally so we can mirror the production reset workflow later.',
-  primaryLabel: 'Issue Recovery Request',
-  emailPlaceholder: 'artist@studio.com',
-  noteLabel: 'Recovery Context',
-  notePlaceholder: 'Lost my latest device token and need to restore studio access.',
-  successLabel: 'Recovery request queued for review.',
-} as const;
-
 export const collectionPageContent = {
   workspaces: {
     title: 'Workspaces',
@@ -168,17 +157,13 @@ export const collectionPageContent = {
     title: 'Favorites',
     description: 'Pinned assets that are stable enough to guide future generations, reviews, and exports.',
   },
-  materials: {
-    title: 'Materials',
-    description: 'Reusable surface definitions ready to be attached to present and future geometry systems.',
-  },
-  lightingRigs: {
-    title: 'Lighting Rigs',
-    description: 'Lighting setups for previews, product renders, and cinematic reviews across the local workspace.',
+  profile: {
+    title: 'Profile',
+    description: 'Manage the identity and account details attached to your local studio workspace.',
   },
   settings: {
     title: 'Settings',
-    description: 'Operational defaults we can later migrate into Supabase-backed preferences and permissions.',
+    description: 'Review and update workspace defaults so the local MVP behaves closer to production.',
   },
 } as const;
 
@@ -198,6 +183,9 @@ export const studioContent = {
   generateLabel: 'GENERATE ASSET',
   jobStatusTitle: 'Generation Status',
   sourcePreviewTitle: 'Source Preview',
+  maskPreviewTitle: 'Mask Preview',
+  segmentationTitle: 'Segmentation',
+  segmentationHelp: 'Use point or box prompts to create a MobileSAM mask for this image.',
   generatedPreviewTitle: 'Generated Asset',
   disabledModelBadge: 'Unavailable',
   emptyViewerLabel: 'No completed asset yet',

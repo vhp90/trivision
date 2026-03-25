@@ -1,7 +1,5 @@
 import { generationRuntimeDefaults, projectRecordDefaults, runtimeDefaults } from '@/lib/config/app';
 import type {
-  LightingRigRecord,
-  MaterialRecord,
   ProjectRecord,
   SettingSection,
   UserProfile,
@@ -40,6 +38,7 @@ function createDemoProject(input: Partial<ProjectRecord> & Pick<ProjectRecord, '
     generationJobId: null,
     parameterValues: input.parameterValues ?? defaultParameters,
     sourceImagePath: null,
+    maskImagePath: null,
     outputAssetPath: null,
     outputFormat: input.outputFormat ?? generationRuntimeDefaults.outputFormat,
     errorMessage: null,
@@ -61,7 +60,7 @@ export const testAccount = {
     latencyLabel: '12ms',
     sessionLabel: runtimeDefaults.verifiedSessionLabel,
     engineVersion: runtimeDefaults.engineVersion,
-    unreadNotifications: 3,
+    unreadNotifications: 0,
   } satisfies UserProfile,
 } as const;
 
@@ -169,82 +168,6 @@ export const demoProjects: ProjectRecord[] = [
   }),
 ];
 
-export const demoMaterials: MaterialRecord[] = [
-  {
-    id: 'material-brushed-titanium',
-    userId: testAccount.profile.id,
-    name: 'Brushed Titanium',
-    category: 'Metal',
-    finish: 'Satin',
-    palette: 'Graphite / Silver',
-    usageLabel: 'Used in 18 assets',
-    updatedLabel: 'Synced 16m ago',
-  },
-  {
-    id: 'material-carbon-shell',
-    userId: testAccount.profile.id,
-    name: 'Carbon Shell',
-    category: 'Composite',
-    finish: 'Matte',
-    palette: 'Charcoal',
-    usageLabel: 'Used in 11 assets',
-    updatedLabel: 'Synced 44m ago',
-  },
-  {
-    id: 'material-neon-acrylic',
-    userId: testAccount.profile.id,
-    name: 'Neon Acrylic',
-    category: 'Polymer',
-    finish: 'Gloss',
-    palette: 'Amber / Magenta',
-    usageLabel: 'Used in 23 assets',
-    updatedLabel: 'Synced 1h ago',
-  },
-  {
-    id: 'material-weathered-concrete',
-    userId: testAccount.profile.id,
-    name: 'Weathered Concrete',
-    category: 'Architectural',
-    finish: 'Rough',
-    palette: 'Stone Grey',
-    usageLabel: 'Used in 9 assets',
-    updatedLabel: 'Synced 2h ago',
-  },
-];
-
-export const demoLightingRigs: LightingRigRecord[] = [
-  {
-    id: 'rig-midnight-showroom',
-    userId: testAccount.profile.id,
-    name: 'Midnight Showroom',
-    rigType: 'Three-point',
-    mood: 'Cinematic',
-    temperature: '4600K',
-    usageLabel: 'Used in 7 renders',
-    updatedLabel: 'Updated 12m ago',
-  },
-  {
-    id: 'rig-solar-overcast',
-    userId: testAccount.profile.id,
-    name: 'Solar Overcast',
-    rigType: 'HDRI',
-    mood: 'Neutral',
-    temperature: '6100K',
-    usageLabel: 'Used in 14 renders',
-    updatedLabel: 'Updated 39m ago',
-  },
-  {
-    id: 'rig-retail-spot-grid',
-    userId: testAccount.profile.id,
-    name: 'Retail Spot Grid',
-    rigType: 'Studio array',
-    mood: 'Product',
-    temperature: '5200K',
-    usageLabel: 'Used in 9 renders',
-    updatedLabel: 'Updated 2h ago',
-  },
-];
-
 export const defaultSettingSections: SettingSection[] = [
   {
     id: 'preferences',
@@ -297,9 +220,9 @@ export const defaultSettingSections: SettingSection[] = [
     ],
   },
   {
-    id: 'collaboration',
-    title: 'Team Controls',
-    description: 'Environment values we’ll eventually map to Supabase-backed preferences and role policies.',
+    id: 'runtime',
+    title: 'Runtime Policies',
+    description: 'Local MVP policies that keep your workspace behavior predictable before backend rollout.',
     items: [
       {
         id: 'review-visibility',
@@ -308,10 +231,10 @@ export const defaultSettingSections: SettingSection[] = [
         description: 'Keep unfinished generations scoped to the active workspace.',
       },
       {
-        id: 'notification-mode',
-        label: 'Notification Mode',
-        value: 'Critical only',
-        description: 'Surface only failures and export-ready milestones in the console shell.',
+        id: 'session-retention',
+        label: 'Session Retention',
+        value: '30 days',
+        description: 'Persist local authenticated sessions long enough for normal studio iteration.',
       },
     ],
   },

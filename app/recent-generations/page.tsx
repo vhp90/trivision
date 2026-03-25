@@ -22,7 +22,7 @@ export default async function RecentGenerationsPage() {
       title={collectionPageContent.recent.title}
       description={collectionPageContent.recent.description}
       actions={
-        <Link href="/studio" className="h-9 px-4 flex items-center justify-center gap-2 bg-primary text-background-dark text-sm font-display font-bold hover:bg-primary-hover transition-colors">
+        <Link prefetch={false} href="/studio" className="h-9 px-4 flex items-center justify-center gap-2 bg-primary text-background-dark text-sm font-display font-bold hover:bg-primary-hover transition-colors">
           <Plus className="w-4 h-4" />
           New Generation
         </Link>
@@ -33,8 +33,24 @@ export default async function RecentGenerationsPage() {
           <Link
             key={project.id}
             href={`/studio?projectId=${project.id}`}
-            className="grid grid-cols-[minmax(0,2fr)_120px_120px_160px] items-center gap-4 px-5 py-4 hover:bg-surface-hover transition-colors"
+            prefetch={false}
+            className="grid grid-cols-[88px_minmax(0,2fr)_120px_120px_160px] items-center gap-4 px-5 py-4 hover:bg-surface-hover transition-colors"
           >
+            <div className="h-16 w-16 overflow-hidden border border-border-muted bg-background-dark">
+              {project.sourceImagePath ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={`/api/projects/${project.id}/asset?kind=source`}
+                  alt={project.name}
+                  loading="lazy"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-[10px] font-mono text-text-muted">
+                  {project.format ?? '3D'}
+                </div>
+              )}
+            </div>
             <div>
               <div className="text-sm font-body font-medium text-text-main">{project.name}</div>
               <div className="text-[11px] font-mono text-text-muted mt-1">

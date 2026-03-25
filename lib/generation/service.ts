@@ -10,6 +10,7 @@ import {
   createGenerationDraft,
   failGenerationJob,
   getGenerationJobForProcessing,
+  getMaskImagePathFromProject,
   getProjectByIdForProcessing,
   getSourceImagePathFromProject,
   markGenerationJobRunning,
@@ -48,6 +49,7 @@ type StartGenerationInput = {
   outputFormat: string;
   parameterValues: GenerationParameterValueMap;
   sourceFile?: File | null;
+  maskFile?: File | null;
   sourceProjectId?: string | null;
 };
 
@@ -59,6 +61,7 @@ export async function startGeneration(input: StartGenerationInput) {
   }
 
   let sourceImagePath: string | null = null;
+  let maskImagePath: string | null = null;
   let sourceFileName = 'reference-image';
 
   if (input.sourceFile && input.sourceFile.size > 0) {
@@ -77,10 +80,26 @@ export async function startGeneration(input: StartGenerationInput) {
       userId: input.userId,
       projectId: input.sourceProjectId,
     });
+    maskImagePath = await getMaskImagePathFromProject({
+      userId: input.userId,
+      projectId: input.sourceProjectId,
+    });
 
     if (sourceImagePath) {
       sourceFileName = path.basename(sourceImagePath);
     }
+  }
+
+  if (input.maskFile && input.maskFile.size > 0) {
+    const draftProjectId = `mask-${Date.now()}`;
+    const fileBuffer = Buffer.from(await input.maskFile.arrayBuffer());
+    maskImagePath = await saveUploadedFile({
+      userId: input.userId,
+      projectId: draftProjectId,
+      kind: 'inputs',
+      fileName: input.maskFile.name || 'mask.png',
+      content: fileBuffer,
+    });
   }
 
   const normalized = normalizeGenerationRequest(
@@ -93,7 +112,7 @@ export async function startGeneration(input: StartGenerationInput) {
     },
     {
       hasSourceImage: Boolean(sourceImagePath),
-      hasMaskImage: false,
+      hasMaskImage: Boolean(maskImagePath),
     },
   );
 
@@ -107,6 +126,7 @@ export async function startGeneration(input: StartGenerationInput) {
     providerId: normalized.model.providerId,
     prompt: normalized.payload.prompt,
     sourceImagePath,
+    maskImagePath,
     sourceFileName,
     outputFormat: normalized.payload.outputFormat,
     parameterValues: normalized.payload.parameterValues,
@@ -123,10 +143,6 @@ export async function startGeneration(input: StartGenerationInput) {
     projectId: draft.projectId,
     status: 'queued' as const,
   };
-}
-
-export function isGenerationActive(jobId: string) {
-  return activeJobs.has(jobId);
 }
 
 export async function processGenerationJob(jobId: string) {
@@ -167,6 +183,13 @@ export async function processGenerationJob(jobId: string) {
     const sourceMimeType = getMimeTypeFromExtension(project.sourceImagePath, 'image/png');
     const client = new RunwareClient();
     const inputImageUuid = await client.uploadImage(sourceBuffer, sourceMimeType);
+    const maskImageUuid = project.maskImagePath
+      ? await (async () => {
+        const maskBuffer = await readFile(path.join(process.cwd(), 'data', 'storage', project.maskImagePath as string));
+        const maskMimeType = getMimeTypeFromExtension(project.maskImagePath as string, 'image/png');
+        return client.uploadImage(maskBuffer, maskMimeType);
+      })()
+      : null;
 
     const executionContext = {
       model,
@@ -175,7 +198,7 @@ export async function processGenerationJob(jobId: string) {
         outputFormat: project.outputFormat,
         parameterValues: project.parameterValues,
         sourceImagePath: project.sourceImagePath,
-        maskImagePath: null,
+        maskImagePath: project.maskImagePath,
       },
     };
 
@@ -184,7 +207,7 @@ export async function processGenerationJob(jobId: string) {
     const providerResult = await adapter.startGeneration({
       ...executionContext,
       inputImageUuid,
-      maskImageUuid: null,
+      maskImageUuid,
     });
 
     if (providerResult.status !== 'completed' || !providerResult.result) {

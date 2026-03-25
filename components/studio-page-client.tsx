@@ -1,6 +1,4 @@
 'use client';
-
-import '@google/model-viewer';
 import { createElement, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -15,6 +13,7 @@ import {
   Lightbulb,
   Menu,
   Play,
+  ScanSearch,
   Settings,
   Shapes,
   Type,
@@ -36,6 +35,7 @@ import type {
   GenerationParameterValueMap,
 } from '@/lib/generation/types';
 import type { ProjectRecord } from '@/lib/db/types';
+import type { MobileSamEditor as MobileSamEditorComponent } from '@/components/mobile-sam-editor';
 
 type StudioPageClientProps = {
   project: ProjectRecord | null;
@@ -53,6 +53,7 @@ type GenerationStatusResponse = {
   project: ProjectRecord;
   assets: {
     sourceImageUrl: string | null;
+    maskImageUrl: string | null;
     outputAssetUrl: string | null;
   };
 };
@@ -144,11 +145,16 @@ function ParameterField({
 export function StudioPageClient({ project }: StudioPageClientProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [mobileSamEditor, setMobileSamEditor] = useState<typeof MobileSamEditorComponent | null>(null);
   const [currentProject, setCurrentProject] = useState<ProjectRecord | null>(project);
   const [selectedModelId, setSelectedModelId] = useState<string>(getInitialModel(project).id);
   const [prompt, setPrompt] = useState<string>(project?.prompt ?? studioDefaults.emptyPrompt);
   const [parameterValues, setParameterValues] = useState<GenerationParameterValueMap>(getInitialParameterValues(project));
   const [sourceFile, setSourceFile] = useState<File | null>(null);
+  const [maskFile, setMaskFile] = useState<File | null>(null);
+  const [maskPreviewUrl, setMaskPreviewUrl] = useState<string | null>(null);
+  const [maskOverlayUrl, setMaskOverlayUrl] = useState<string | null>(null);
+  const [maskCleared, setMaskCleared] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [viewerMode, setViewerMode] = useState<ViewerMode>('solid');
@@ -171,13 +177,17 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
     .filter((model) => model.availability === 'disabled')
     .map((model) => `${model.shortLabel}: ${model.disabledReason ?? 'Unavailable'}`);
   const persistedSourcePreviewUrl = currentProject?.sourceImagePath ? `/api/projects/${currentProject.id}/asset?kind=source` : null;
+  const persistedMaskPreviewUrl = !sourceFile && currentProject?.maskImagePath ? `/api/projects/${currentProject.id}/asset?kind=mask` : null;
   const outputAssetUrl = currentProject?.outputAssetPath ? `/api/projects/${currentProject.id}/asset?kind=output` : null;
   const uploadedSourcePreviewUrl = useMemo(
     () => (sourceFile ? URL.createObjectURL(sourceFile) : null),
     [sourceFile],
   );
   const sourcePreviewUrl = uploadedSourcePreviewUrl ?? persistedSourcePreviewUrl;
+  const activeMaskPreviewUrl = maskPreviewUrl ?? (maskCleared ? null : persistedMaskPreviewUrl);
   const isJobActive = isSubmitting || currentProject?.status === 'queued' || currentProject?.status === 'running';
+  const requiresMask = selectedModel.capabilities.inputKinds.includes('mask');
+  const hasMaskForCurrentSource = Boolean(maskFile) || Boolean(!sourceFile && !maskCleared && currentProject?.maskImagePath);
   const exportFileFormat = (currentProject?.outputFormat ?? selectedModel.defaultOutputFormat).toUpperCase();
   const downloadFileName = `${(currentProject?.name ?? selectedModel.shortLabel).replace(/[^a-zA-Z0-9._-]+/g, '-').toLowerCase()}.${exportFileFormat.toLowerCase()}`;
   const downloadHref = outputAssetUrl
@@ -188,6 +198,28 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
     { label: 'Verts', value: currentProject?.vertCount ?? studioContent.viewerMetrics[1].value },
     { label: 'FPS', value: currentProject?.fps ?? studioContent.viewerMetrics[2].value, colorClassName: 'text-[#00E676]' },
   ];
+
+  useEffect(() => {
+    void import('@google/model-viewer');
+  }, []);
+
+  useEffect(() => {
+    if (selectedModel.segmentationSupport?.engine !== 'mobile-sam') {
+      return;
+    }
+
+    let isMounted = true;
+
+    void import('@/components/mobile-sam-editor').then((module) => {
+      if (isMounted) {
+        setMobileSamEditor(() => module.MobileSamEditor);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedModel.segmentationSupport?.engine]);
 
   useEffect(() => {
     if (!uploadedSourcePreviewUrl) {
@@ -233,6 +265,7 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
       || currentProject?.status === 'running'
     )
     && (Boolean(sourceFile) || Boolean(currentProject?.sourceImagePath))
+    && (!requiresMask || hasMaskForCurrentSource)
     && !(promptDisabled && prompt.trim());
 
   const handleModelChange = (modelId: string) => {
@@ -260,7 +293,9 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
 
   const handleGenerate = async () => {
     if (!canGenerate) {
-      setErrorMessage('Select an image and use a supported model configuration before generating.');
+      setErrorMessage(requiresMask
+        ? 'Select an image and create a mask before generating with this model.'
+        : 'Select an image and use a supported model configuration before generating.');
       return;
     }
 
@@ -274,6 +309,10 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
       formData.append('sourceImage', sourceFile);
     } else if (currentProject?.id) {
       formData.append('sourceProjectId', currentProject.id);
+    }
+
+    if (maskFile) {
+      formData.append('maskImage', maskFile);
     }
 
     setIsSubmitting(true);
@@ -299,9 +338,14 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
     if (statusResponse.ok) {
       const statusPayload = await statusResponse.json() as GenerationStatusResponse;
       setCurrentProject(statusPayload.project);
+      setMaskCleared(false);
     }
 
     setSourceFile(null);
+    setMaskFile(null);
+    setMaskPreviewUrl(null);
+    setMaskOverlayUrl(null);
+    setMaskCleared(false);
     setIsSubmitting(false);
     router.replace(`/studio?projectId=${payload.projectId}`);
     router.refresh();
@@ -448,6 +492,10 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
                   onChange={(event) => {
                     const file = event.target.files?.[0] ?? null;
                     setSourceFile(file);
+                    setMaskFile(null);
+                    setMaskPreviewUrl(null);
+                    setMaskOverlayUrl(null);
+                    setMaskCleared(Boolean(file));
                     if (file) {
                       setErrorMessage('');
                     }
@@ -455,6 +503,44 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
                 />
               </div>
             </div>
+
+            {selectedModel.segmentationSupport?.engine === 'mobile-sam' ? (
+              <div className="space-y-3 border border-border-muted bg-background-dark p-4">
+                <div>
+                  <div className="text-[11px] font-mono text-text-muted uppercase tracking-wider">{studioContent.segmentationTitle}</div>
+                  <div className="mt-1 text-[12px] text-text-muted">{studioContent.segmentationHelp}</div>
+                </div>
+                {mobileSamEditor ? (
+                  createElement(mobileSamEditor, {
+                    sourceImageUrl: sourcePreviewUrl,
+                    sourceFingerprint: `${selectedModel.id}-${sourcePreviewUrl ?? 'empty'}`,
+                    existingMaskUrl: activeMaskPreviewUrl,
+                    onMaskChange: (input: {
+                      file: File;
+                      maskPreviewUrl: string;
+                      overlayPreviewUrl: string;
+                      selectedPixelCount: number;
+                    }) => {
+                      setMaskFile(input.file);
+                      setMaskPreviewUrl(input.maskPreviewUrl);
+                      setMaskOverlayUrl(input.overlayPreviewUrl);
+                      setMaskCleared(false);
+                      setErrorMessage('');
+                    },
+                    onMaskClear: () => {
+                      setMaskFile(null);
+                      setMaskPreviewUrl(null);
+                      setMaskOverlayUrl(null);
+                      setMaskCleared(true);
+                    },
+                  })
+                ) : (
+                  <div className="flex min-h-32 items-center justify-center border border-border-muted bg-background-dark text-[11px] font-mono text-text-muted">
+                    Loading MobileSAM tools...
+                  </div>
+                )}
+              </div>
+            ) : null}
 
             <div className="border border-border-muted bg-background-dark p-4">
               <div className="text-[11px] font-mono text-text-muted uppercase tracking-wider mb-2">{studioContent.jobStatusTitle}</div>
@@ -621,6 +707,16 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
                       alt="Source preview"
                       className="h-full w-full object-cover"
                     />
+                    {maskOverlayUrl ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={maskOverlayUrl}
+                          alt=""
+                          className="absolute inset-0 h-full w-full object-cover"
+                        />
+                      </>
+                    ) : null}
                   </>
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center text-[11px] font-mono text-text-muted">
@@ -629,6 +725,34 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
                 )}
               </div>
             </div>
+
+            {selectedModel.segmentationSupport?.engine === 'mobile-sam' ? (
+              <div className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-medium flex items-center gap-2">
+                    <ScanSearch className="w-4 h-4 text-text-muted" />
+                    {studioContent.maskPreviewTitle}
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-text-muted" />
+                </div>
+                <div className="border border-border-muted bg-background-dark aspect-square overflow-hidden relative">
+                  {activeMaskPreviewUrl ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={activeMaskPreviewUrl}
+                        alt="Mask preview"
+                        className="h-full w-full object-cover"
+                      />
+                    </>
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-[11px] font-mono text-text-muted">
+                      Create a mask to enable SAM 3D generation
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
 
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between">

@@ -7,15 +7,12 @@ import type { GenerationParameterValueMap, GenerationRequestPayload } from '@/li
 import { getDatabaseClient, provisionNewUser } from '@/lib/db/client';
 import type {
   GenerationJobSummary,
-  LightingRigRecord,
   LoginPayload,
-  MaterialRecord,
   ProjectRecord,
   SettingItem,
   SettingSection,
   ShellSummary,
   SignupPayload,
-  SupportRequestPayload,
   UserProfile,
   VisualKind,
   WorkspaceSummary,
@@ -34,6 +31,15 @@ function safeParseParameterValues(rawValue: unknown): GenerationParameterValueMa
   } catch {
     return {};
   }
+}
+
+function createInitials(fullName: string) {
+  return fullName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((segment) => segment[0]?.toUpperCase() ?? '')
+    .join('')
+    || 'NV';
 }
 
 function mapUserProfile(row: Record<string, unknown>): UserProfile {
@@ -96,37 +102,12 @@ function mapProject(row: Record<string, unknown>): ProjectRecord {
     generationJobId: row.generation_job_id ? String(row.generation_job_id) : null,
     parameterValues: safeParseParameterValues(row.parameter_values_json),
     sourceImagePath: row.source_image_path ? String(row.source_image_path) : null,
+    maskImagePath: row.mask_image_path ? String(row.mask_image_path) : null,
     outputAssetPath: row.output_asset_path ? String(row.output_asset_path) : null,
     outputFormat: row.output_format ? String(row.output_format) : null,
     errorMessage: row.error_message ? String(row.error_message) : null,
     submittedAt: row.submitted_at ? String(row.submitted_at) : null,
     completedAt: row.completed_at ? String(row.completed_at) : null,
-  };
-}
-
-function mapMaterial(row: Record<string, unknown>): MaterialRecord {
-  return {
-    id: String(row.id),
-    userId: String(row.user_id),
-    name: String(row.name),
-    category: String(row.category),
-    finish: String(row.finish),
-    palette: String(row.palette),
-    usageLabel: String(row.usage_label),
-    updatedLabel: String(row.updated_label),
-  };
-}
-
-function mapLightingRig(row: Record<string, unknown>): LightingRigRecord {
-  return {
-    id: String(row.id),
-    userId: String(row.user_id),
-    name: String(row.name),
-    rigType: String(row.rig_type),
-    mood: String(row.mood),
-    temperature: String(row.temperature),
-    usageLabel: String(row.usage_label),
-    updatedLabel: String(row.updated_label),
   };
 }
 
@@ -229,12 +210,7 @@ export async function signupUser(payload: SignupPayload) {
     id: `user-${randomUUID()}`,
     fullName: payload.fullName,
     email: payload.email.toLowerCase(),
-    initials: payload.fullName
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((segment) => segment[0]?.toUpperCase() ?? '')
-      .join('')
-      || 'NV',
+    initials: createInitials(payload.fullName),
     ...newUserProfileDefaults,
   };
 
@@ -254,25 +230,13 @@ export async function loginUser(payload: LoginPayload) {
 
 export async function getShellSummary(userId: string): Promise<ShellSummary> {
   const db = await getDatabaseClient();
-  const [userResult, materialsResult, lightingResult] = await Promise.all([
-    db.execute({
-      sql: 'SELECT * FROM users WHERE id = ? LIMIT 1',
-      args: [userId],
-    }),
-    db.execute({
-      sql: 'SELECT COUNT(*) AS count FROM materials WHERE user_id = ?',
-      args: [userId],
-    }),
-    db.execute({
-      sql: 'SELECT COUNT(*) AS count FROM lighting_rigs WHERE user_id = ?',
-      args: [userId],
-    }),
-  ]);
+  const userResult = await db.execute({
+    sql: 'SELECT * FROM users WHERE id = ? LIMIT 1',
+    args: [userId],
+  });
 
   return {
     user: mapUserProfile(userResult.rows[0] as Record<string, unknown>),
-    materialCount: Number(materialsResult.rows[0]?.count ?? 0),
-    lightingRigCount: Number(lightingResult.rows[0]?.count ?? 0),
   };
 }
 
@@ -342,24 +306,6 @@ export async function getProjectByIdForProcessing(projectId: string) {
   return mapProject(result.rows[0] as Record<string, unknown>);
 }
 
-export async function getMaterials(userId: string) {
-  const db = await getDatabaseClient();
-  const result = await db.execute({
-    sql: 'SELECT * FROM materials WHERE user_id = ? ORDER BY name',
-    args: [userId],
-  });
-  return result.rows.map((row) => mapMaterial(row as Record<string, unknown>));
-}
-
-export async function getLightingRigs(userId: string) {
-  const db = await getDatabaseClient();
-  const result = await db.execute({
-    sql: 'SELECT * FROM lighting_rigs WHERE user_id = ? ORDER BY name',
-    args: [userId],
-  });
-  return result.rows.map((row) => mapLightingRig(row as Record<string, unknown>));
-}
-
 export async function getSettings(userId: string) {
   const db = await getDatabaseClient();
   const result = await db.execute({
@@ -375,6 +321,7 @@ export async function getSettings(userId: string) {
 
     const item: SettingItem = {
       id: String(row.id),
+      key: String(row.id).replace(`${userId}-`, ''),
       label: String(row.label),
       value: String(row.value),
       description: String(row.description),
@@ -396,19 +343,38 @@ export async function getSettings(userId: string) {
   return Array.from(grouped.values());
 }
 
-export async function createSupportRequest(payload: SupportRequestPayload) {
+export async function updateUserProfileDetails(input: { userId: string; fullName: string }) {
   const db = await getDatabaseClient();
-  const id = `recovery-${Date.now()}`;
-
   await db.execute({
     sql: `
-      INSERT INTO support_requests (id, email, note, status)
-      VALUES (?, ?, ?, ?)
+      UPDATE users
+      SET full_name = ?, initials = ?
+      WHERE id = ?
     `,
-    args: [id, payload.email, payload.note, 'queued'],
+    args: [input.fullName, createInitials(input.fullName), input.userId],
   });
+}
 
-  return { id };
+export async function updateUserSettings(input: {
+  userId: string;
+  updates: Array<{ id: string; value: string }>;
+}) {
+  if (input.updates.length === 0) {
+    return;
+  }
+
+  const db = await getDatabaseClient();
+
+  for (const update of input.updates) {
+    await db.execute({
+      sql: `
+        UPDATE settings
+        SET value = ?
+        WHERE id = ? AND user_id = ?
+      `,
+      args: [update.value, update.id, input.userId],
+    });
+  }
 }
 
 async function getPrimaryWorkspace(userId: string) {
@@ -432,6 +398,7 @@ export async function createGenerationDraft(input: {
   providerId: string;
   prompt: string;
   sourceImagePath: string;
+  maskImagePath?: string | null;
   sourceFileName: string;
   outputFormat: string;
   parameterValues: GenerationParameterValueMap;
@@ -444,12 +411,13 @@ export async function createGenerationDraft(input: {
   const model = getGenerationModel(input.modelId);
   const defaults = model ? getModelParameterDefaults(model) : {};
 
-  const requestPayload: GenerationRequestPayload & { sourceImagePath: string } = {
+  const requestPayload: GenerationRequestPayload & { sourceImagePath: string; maskImagePath?: string | null } = {
     modelId: input.modelId,
     prompt: input.prompt,
     outputFormat: input.outputFormat,
     parameterValues: { ...defaults, ...input.parameterValues },
     sourceImagePath: input.sourceImagePath,
+    maskImagePath: input.maskImagePath ?? null,
   };
 
   await db.execute({
@@ -458,8 +426,8 @@ export async function createGenerationDraft(input: {
         id, user_id, workspace_id, workspace_name, name, format, updated_label, tris_label, visual, prompt,
         seed, resolution, creativity, detail_level, tri_count, vert_count, fps, auto_save_label, is_favorite,
         is_recent, sort_order, generation_status, provider_id, model_id, generation_job_id, parameter_values_json,
-        source_image_path, output_asset_path, output_format, error_message, submitted_at, completed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        source_image_path, mask_image_path, output_asset_path, output_format, error_message, submitted_at, completed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     args: [
       projectId,
@@ -489,6 +457,7 @@ export async function createGenerationDraft(input: {
       jobId,
       JSON.stringify(requestPayload.parameterValues),
       input.sourceImagePath,
+      input.maskImagePath ?? null,
       null,
       input.outputFormat,
       null,
@@ -598,14 +567,6 @@ export async function markGenerationJobRunning(jobId: string) {
   });
 }
 
-export async function updateGenerationAttemptCount(jobId: string, attemptCount: number) {
-  const db = await getDatabaseClient();
-  await db.execute({
-    sql: 'UPDATE generation_jobs SET attempt_count = ?, updated_at = ? WHERE id = ?',
-    args: [attemptCount, new Date().toISOString(), jobId],
-  });
-}
-
 export async function completeGenerationJob(input: {
   jobId: string;
   providerTaskId: string | null;
@@ -694,10 +655,14 @@ export async function failGenerationJob(input: {
 export async function getProjectFilePathForUser(input: {
   userId: string;
   projectId: string;
-  kind: 'source' | 'output';
+  kind: 'source' | 'mask' | 'output';
 }) {
   const db = await getDatabaseClient();
-  const fieldName = input.kind === 'source' ? 'source_image_path' : 'output_asset_path';
+  const fieldName = input.kind === 'source'
+    ? 'source_image_path'
+    : input.kind === 'mask'
+      ? 'mask_image_path'
+      : 'output_asset_path';
   const result = await db.execute({
     sql: `SELECT ${fieldName} AS file_path FROM projects WHERE id = ? AND user_id = ? LIMIT 1`,
     args: [input.projectId, input.userId],
@@ -711,4 +676,8 @@ export async function getProjectFilePathForUser(input: {
 
 export async function getSourceImagePathFromProject(input: { userId: string; projectId: string }) {
   return getProjectFilePathForUser({ ...input, kind: 'source' });
+}
+
+export async function getMaskImagePathFromProject(input: { userId: string; projectId: string }) {
+  return getProjectFilePathForUser({ ...input, kind: 'mask' });
 }
