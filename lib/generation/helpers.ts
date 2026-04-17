@@ -51,6 +51,22 @@ export function getNumberParameter(
   return typeof value === 'number' ? value : null;
 }
 
+export function getBooleanParameter(
+  parameterValues: GenerationParameterValueMap,
+  key: string,
+) {
+  const value = parameterValues[key];
+  return typeof value === 'boolean' ? value : null;
+}
+
+export function getStringParameter(
+  parameterValues: GenerationParameterValueMap,
+  key: string,
+) {
+  const value = parameterValues[key];
+  return typeof value === 'string' ? value : null;
+}
+
 export function sleep(durationMs: number) {
   return new Promise((resolve) => setTimeout(resolve, durationMs));
 }

@@ -79,13 +79,14 @@ function buildRequest(
 }
 
 async function startGeneration(
-  context: ProviderExecutionContext & {
-    inputImageUuid: string;
-    maskImageUuid?: string | null;
-  },
+  context: ProviderExecutionContext,
 ): Promise<ProviderStartResult> {
   const client = new RunwareClient();
-  const request = buildRequest(context, context.inputImageUuid, context.maskImageUuid);
+  const inputImageUuid = await client.uploadImage(context.sourceImage.buffer, context.sourceImage.mimeType);
+  const maskImageUuid = context.maskImage
+    ? await client.uploadImage(context.maskImage.buffer, context.maskImage.mimeType)
+    : null;
+  const request = buildRequest(context, inputImageUuid, maskImageUuid);
   const rawResponse = await client.request([request]);
   const result = normalizeRunware3DResult(rawResponse, request.taskUUID);
 
@@ -100,12 +101,9 @@ async function startGeneration(
 export const samAdapter: ProviderAdapter = {
   modelId: 'meta:sam@3d',
   validateInput(context) {
-    if (!context.input.maskImagePath) {
+    if (!context.input.maskImagePath || !context.maskImage) {
       throw new Error('SAM 3D requires a mask input.');
     }
-  },
-  buildRunwareRequest(context, inputImageUuid, maskImageUuid) {
-    return buildRequest(context, inputImageUuid, maskImageUuid);
   },
   startGeneration,
   normalizeResult: normalizeRunware3DResult,

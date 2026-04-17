@@ -8,16 +8,18 @@ Trivision is a Next.js application for a text-to-3D workspace MVP. The app keeps
 
 1. Install dependencies with `npm install`.
 2. Copy `.env.example` to `.env.local`.
-3. Set `RUNWARE_API_KEY` so the active TRELLIS.2 provider can execute real generations.
-4. Start the development server with `npm run dev`.
-5. Build for production with `npm run build`.
-6. Run the production server with `npm run start`.
+3. Set `RUNWARE_API_KEY` for the Runware-backed models.
+4. Set `LIGHTNING_TRELLIS_API_URL` if you want to use the self-hosted Lightning TRELLIS.2 provider.
+5. Start the development server with `npm run dev`.
+6. Build for production with `npm run build`.
+7. Run the production server with `npm run start`.
 
 ## Generation Architecture
 
 - The shared model registry and parameter schema live under `lib/generation/registry.ts`.
 - Provider adapters live under `lib/generation/providers/`, one file per model.
 - Shared Runware transport logic lives in `lib/generation/runware-client.ts`.
+- The self-hosted Lightning TRELLIS client lives in `lib/generation/lightning-client.ts`.
 - Local uploads and generated 3D assets are stored under `data/storage/` through `lib/storage/local.ts`.
 - Generation jobs are stored in the local database and exposed through `POST /api/generations` and `GET /api/generations/:id`.
 - Completed source and output assets are streamed back through authenticated project asset routes.
@@ -25,7 +27,8 @@ Trivision is a Next.js application for a text-to-3D workspace MVP. The app keeps
 ## Current Model Support
 
 - `microsoft:trellis-2@4b` is enabled for image-to-3D generation.
-- `meta:sam@3d` is implemented in the registry and provider layer but intentionally disabled in the UI until mask upload support is added.
+- `lightning:microsoft-trellis-2@4b` is enabled as a second TRELLIS.2 provider and runs `/rembg` before generation on the self-hosted Lightning API.
+- `meta:sam@3d` is enabled for image-plus-mask 3D generation.
 
 ## Local Data Layer
 

@@ -30,6 +30,10 @@ export const generationRuntimeDefaults = {
   viewerEnvironmentImage: 'neutral',
 } as const;
 
+export const generationProviderConfig = {
+  lightningTrellisApiUrl: process.env.LIGHTNING_TRELLIS_API_URL?.trim() || '',
+} as const;
+
 export const mobileSamRuntimeDefaults = {
   encoderModelPath: '/models/mobilesam.encoder.onnx',
   decoderModelPath: '/models/mobilesam.decoder.quant.onnx',

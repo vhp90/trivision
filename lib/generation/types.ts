@@ -68,6 +68,13 @@ export type GenerationExecutionInput = {
   maskImagePath?: string | null;
 };
 
+export type GenerationInputAsset = {
+  path: string;
+  fileName: string;
+  buffer: Buffer;
+  mimeType: string;
+};
+
 export type Runware3DRequest = {
   taskType: '3dInference';
   taskUUID: string;
@@ -105,18 +112,14 @@ export type ProviderPollResult = {
 export type ProviderExecutionContext = {
   model: GenerationModelDefinition;
   input: GenerationExecutionInput;
+  sourceImage: GenerationInputAsset;
+  maskImage?: GenerationInputAsset | null;
 };
 
 export type ProviderAdapter = {
   modelId: string;
   validateInput: (context: ProviderExecutionContext) => void;
-  buildRunwareRequest: (context: ProviderExecutionContext, inputImageUuid: string, maskImageUuid?: string | null) => Runware3DRequest;
-  startGeneration: (
-    context: ProviderExecutionContext & {
-      inputImageUuid: string;
-      maskImageUuid?: string | null;
-    },
-  ) => Promise<ProviderStartResult>;
+  startGeneration: (context: ProviderExecutionContext) => Promise<ProviderStartResult>;
   pollGeneration?: (
     context: ProviderExecutionContext & {
       providerTaskId: string;

@@ -90,13 +90,10 @@ function buildRequest(context: ProviderExecutionContext, inputImageUuid: string)
   };
 }
 
-async function startGeneration(
-  context: ProviderExecutionContext & {
-    inputImageUuid: string;
-  },
-): Promise<ProviderStartResult> {
+async function startGeneration(context: ProviderExecutionContext): Promise<ProviderStartResult> {
   const client = new RunwareClient();
-  const request = buildRequest(context, context.inputImageUuid);
+  const inputImageUuid = await client.uploadImage(context.sourceImage.buffer, context.sourceImage.mimeType);
+  const request = buildRequest(context, inputImageUuid);
   const rawResponse = await client.request([request]);
   const result = normalizeRunware3DResult(rawResponse, request.taskUUID);
 
@@ -114,9 +111,6 @@ export const trellisAdapter: ProviderAdapter = {
     if (context.input.prompt.trim()) {
       throw new Error(context.model.promptHelperText);
     }
-  },
-  buildRunwareRequest(context, inputImageUuid) {
-    return buildRequest(context, inputImageUuid);
   },
   startGeneration,
   normalizeResult: normalizeRunware3DResult,

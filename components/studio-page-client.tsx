@@ -80,6 +80,10 @@ function getInitialParameterValues(project: ProjectRecord | null) {
   };
 }
 
+function isLightningTrellisModel(modelId: string) {
+  return modelId === 'lightning:microsoft-trellis-2@4b';
+}
+
 function ParameterField({
   definition,
   value,
@@ -151,10 +155,13 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
   const [prompt, setPrompt] = useState<string>(project?.prompt ?? studioDefaults.emptyPrompt);
   const [parameterValues, setParameterValues] = useState<GenerationParameterValueMap>(getInitialParameterValues(project));
   const [sourceFile, setSourceFile] = useState<File | null>(null);
+  const [processedSourceFile, setProcessedSourceFile] = useState<File | null>(null);
+  const [processedSourcePreviewUrl, setProcessedSourcePreviewUrl] = useState<string | null>(null);
   const [maskFile, setMaskFile] = useState<File | null>(null);
   const [maskPreviewUrl, setMaskPreviewUrl] = useState<string | null>(null);
   const [maskOverlayUrl, setMaskOverlayUrl] = useState<string | null>(null);
   const [maskCleared, setMaskCleared] = useState(false);
+  const [isPreprocessing, setIsPreprocessing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [viewerMode, setViewerMode] = useState<ViewerMode>('solid');
@@ -173,10 +180,13 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
   const currentStatus = currentProject?.status ?? 'succeeded';
   const autoSaveLabel = currentProject?.autoSaveLabel ?? studioDefaults.emptyAutoSaveLabel;
   const promptDisabled = selectedModel.capabilities.promptSupport === 'none';
+  const requiresLightningPreprocess = isLightningTrellisModel(selectedModel.id);
+  const hasPersistedLightningSource = Boolean(!sourceFile && currentProject?.sourceImagePath && currentProject?.modelId === selectedModel.id);
   const disabledModelLabels = generationModels
     .filter((model) => model.availability === 'disabled')
     .map((model) => `${model.shortLabel}: ${model.disabledReason ?? 'Unavailable'}`);
   const persistedSourcePreviewUrl = currentProject?.sourceImagePath ? `/api/projects/${currentProject.id}/asset?kind=source` : null;
+  const persistedProcessedPreviewUrl = requiresLightningPreprocess && hasPersistedLightningSource ? persistedSourcePreviewUrl : null;
   const persistedMaskPreviewUrl = !sourceFile && currentProject?.maskImagePath ? `/api/projects/${currentProject.id}/asset?kind=mask` : null;
   const outputAssetUrl = currentProject?.outputAssetPath ? `/api/projects/${currentProject.id}/asset?kind=output` : null;
   const uploadedSourcePreviewUrl = useMemo(
@@ -184,6 +194,7 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
     [sourceFile],
   );
   const sourcePreviewUrl = uploadedSourcePreviewUrl ?? persistedSourcePreviewUrl;
+  const activeProcessedPreviewUrl = processedSourcePreviewUrl ?? persistedProcessedPreviewUrl;
   const activeMaskPreviewUrl = maskPreviewUrl ?? (maskCleared ? null : persistedMaskPreviewUrl);
   const isJobActive = isSubmitting || currentProject?.status === 'queued' || currentProject?.status === 'running';
   const requiresMask = selectedModel.capabilities.inputKinds.includes('mask');
@@ -232,6 +243,16 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
   }, [uploadedSourcePreviewUrl]);
 
   useEffect(() => {
+    if (!processedSourcePreviewUrl) {
+      return undefined;
+    }
+
+    return () => {
+      URL.revokeObjectURL(processedSourcePreviewUrl);
+    };
+  }, [processedSourcePreviewUrl]);
+
+  useEffect(() => {
     const activeJobId = currentProject?.generationJobId;
 
     if (!activeJobId || (currentProject.status !== 'queued' && currentProject.status !== 'running')) {
@@ -260,11 +281,14 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
 
   const canGenerate = selectedModel.availability === 'enabled'
     && !isSubmitting
+    && !isPreprocessing
     && !(
       currentProject?.status === 'queued'
       || currentProject?.status === 'running'
     )
-    && (Boolean(sourceFile) || Boolean(currentProject?.sourceImagePath))
+    && (requiresLightningPreprocess
+      ? Boolean(processedSourceFile) || hasPersistedLightningSource
+      : Boolean(sourceFile) || Boolean(currentProject?.sourceImagePath))
     && (!requiresMask || hasMaskForCurrentSource)
     && !(promptDisabled && prompt.trim());
 
@@ -278,6 +302,8 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
     setSelectedModelId(model.id);
     setParameterValues(getModelParameterDefaults(model));
     setErrorMessage('');
+    setProcessedSourceFile(null);
+    setProcessedSourcePreviewUrl(null);
 
     if (model.capabilities.promptSupport === 'none') {
       setPrompt('');
@@ -291,6 +317,43 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
     }));
   };
 
+  const handleLightningPreprocess = async () => {
+    if (!sourceFile) {
+      setErrorMessage('Upload an image before running background removal.');
+      return;
+    }
+
+    setIsPreprocessing(true);
+    setErrorMessage('');
+
+    const formData = new FormData();
+    formData.append('sourceImage', sourceFile);
+
+    const response = await fetch('/api/providers/lightning/rembg', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({ message: 'Unable to remove background.' }));
+      setProcessedSourceFile(null);
+      setProcessedSourcePreviewUrl(null);
+      setIsPreprocessing(false);
+      setErrorMessage(payload.message ?? 'Unable to remove background.');
+      return;
+    }
+
+    const processedBlob = await response.blob();
+    const processedFileName = response.headers.get('X-Processed-Filename') || `${sourceFile.name.replace(/\.[^.]+$/, '')}-rembg.png`;
+    const nextProcessedFile = new File([processedBlob], processedFileName, {
+      type: processedBlob.type || 'image/png',
+    });
+
+    setProcessedSourceFile(nextProcessedFile);
+    setProcessedSourcePreviewUrl(URL.createObjectURL(nextProcessedFile));
+    setIsPreprocessing(false);
+  };
+
   const handleGenerate = async () => {
     if (!canGenerate) {
       setErrorMessage(requiresMask
@@ -300,14 +363,15 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
     }
 
     const formData = new FormData();
+    const effectiveSourceFile = requiresLightningPreprocess ? processedSourceFile : sourceFile;
     formData.append('modelId', selectedModel.id);
     formData.append('prompt', prompt);
     formData.append('outputFormat', selectedModel.defaultOutputFormat);
     formData.append('parameters', JSON.stringify(parameterValues));
 
-    if (sourceFile) {
-      formData.append('sourceImage', sourceFile);
-    } else if (currentProject?.id) {
+    if (effectiveSourceFile) {
+      formData.append('sourceImage', effectiveSourceFile);
+    } else if (currentProject?.id && (!requiresLightningPreprocess || hasPersistedLightningSource)) {
       formData.append('sourceProjectId', currentProject.id);
     }
 
@@ -342,6 +406,8 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
     }
 
     setSourceFile(null);
+    setProcessedSourceFile(null);
+    setProcessedSourcePreviewUrl(null);
     setMaskFile(null);
     setMaskPreviewUrl(null);
     setMaskOverlayUrl(null);
@@ -492,6 +558,8 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
                   onChange={(event) => {
                     const file = event.target.files?.[0] ?? null;
                     setSourceFile(file);
+                    setProcessedSourceFile(null);
+                    setProcessedSourcePreviewUrl(null);
                     setMaskFile(null);
                     setMaskPreviewUrl(null);
                     setMaskOverlayUrl(null);
@@ -503,6 +571,42 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
                 />
               </div>
             </div>
+
+            {requiresLightningPreprocess ? (
+              <div className="space-y-3 border border-border-muted bg-background-dark p-4">
+                <div>
+                  <div className="text-[11px] font-mono text-text-muted uppercase tracking-wider">{studioContent.lightningPrepTitle}</div>
+                  <div className="mt-1 text-[12px] text-text-muted">{studioContent.lightningPrepHelp}</div>
+                </div>
+                <div className="border border-border-muted bg-surface p-3 space-y-3">
+                  <div className="aspect-square overflow-hidden border border-border-muted bg-background-dark relative">
+                    {activeProcessedPreviewUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={activeProcessedPreviewUrl}
+                        alt="Background removed preview"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-[11px] font-mono text-text-muted">
+                        {studioContent.lightningPrepPendingLabel}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleLightningPreprocess}
+                    disabled={!sourceFile || isPreprocessing || isSubmitting}
+                    className="w-full h-10 border border-border-muted bg-surface hover:border-primary hover:text-primary disabled:opacity-60 disabled:hover:border-border-muted disabled:hover:text-text-main transition-colors text-sm font-body text-text-main"
+                  >
+                    {isPreprocessing ? studioContent.lightningPrepProcessingLabel : studioContent.lightningPrepAction}
+                  </button>
+                  <div className="text-[11px] font-mono text-text-muted">
+                    {activeProcessedPreviewUrl ? studioContent.lightningPrepReadyLabel : studioContent.lightningPrepPendingLabel}
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {selectedModel.segmentationSupport?.engine === 'mobile-sam' ? (
               <div className="space-y-3 border border-border-muted bg-background-dark p-4">
@@ -725,6 +829,32 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
                 )}
               </div>
             </div>
+
+            {requiresLightningPreprocess ? (
+              <div className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-medium flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-text-muted" />
+                    {studioContent.lightningPrepPreviewTitle}
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-text-muted" />
+                </div>
+                <div className="border border-border-muted bg-background-dark aspect-square overflow-hidden relative">
+                  {activeProcessedPreviewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={activeProcessedPreviewUrl}
+                      alt="Processed preview"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-[11px] font-mono text-text-muted">
+                      Run background removal to prepare the image
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
 
             {selectedModel.segmentationSupport?.engine === 'mobile-sam' ? (
               <div className="p-4 space-y-4">

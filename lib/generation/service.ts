@@ -3,7 +3,6 @@ import path from 'node:path';
 import { getGenerationModel } from '@/lib/generation/registry';
 import { getProviderAdapter } from '@/lib/generation/providers';
 import { normalizeGenerationRequest } from '@/lib/generation/validation';
-import { RunwareClient } from '@/lib/generation/runware-client';
 import { generationRuntimeDefaults } from '@/lib/config/app';
 import {
   completeGenerationJob,
@@ -15,7 +14,7 @@ import {
   getSourceImagePathFromProject,
   markGenerationJobRunning,
 } from '@/lib/db/repository';
-import type { GenerationParameterValueMap } from '@/lib/generation/types';
+import type { GenerationInputAsset, GenerationParameterValueMap } from '@/lib/generation/types';
 import { saveRemoteAsset, saveUploadedFile } from '@/lib/storage/local';
 
 const activeJobs = new Map<string, Promise<void>>();
@@ -179,16 +178,9 @@ export async function processGenerationJob(jobId: string) {
   try {
     await markGenerationJobRunning(jobId);
 
-    const sourceBuffer = await readFile(path.join(process.cwd(), 'data', 'storage', project.sourceImagePath));
-    const sourceMimeType = getMimeTypeFromExtension(project.sourceImagePath, 'image/png');
-    const client = new RunwareClient();
-    const inputImageUuid = await client.uploadImage(sourceBuffer, sourceMimeType);
-    const maskImageUuid = project.maskImagePath
-      ? await (async () => {
-        const maskBuffer = await readFile(path.join(process.cwd(), 'data', 'storage', project.maskImagePath as string));
-        const maskMimeType = getMimeTypeFromExtension(project.maskImagePath as string, 'image/png');
-        return client.uploadImage(maskBuffer, maskMimeType);
-      })()
+    const sourceImage = await loadGenerationAsset(project.sourceImagePath, 'image/png');
+    const maskImage = project.maskImagePath
+      ? await loadGenerationAsset(project.maskImagePath, 'image/png')
       : null;
 
     const executionContext = {
@@ -200,15 +192,13 @@ export async function processGenerationJob(jobId: string) {
         sourceImagePath: project.sourceImagePath,
         maskImagePath: project.maskImagePath,
       },
+      sourceImage,
+      maskImage,
     };
 
     adapter.validateInput(executionContext);
 
-    const providerResult = await adapter.startGeneration({
-      ...executionContext,
-      inputImageUuid,
-      maskImageUuid,
-    });
+    const providerResult = await adapter.startGeneration(executionContext);
 
     if (providerResult.status !== 'completed' || !providerResult.result) {
       throw new Error('The provider did not return a completed 3D asset.');
@@ -240,4 +230,16 @@ export async function processGenerationJob(jobId: string) {
       errorMessage: adapter.mapError(error),
     });
   }
+}
+
+async function loadGenerationAsset(relativePath: string, fallbackMimeType: string): Promise<GenerationInputAsset> {
+  const absolutePath = path.join(process.cwd(), 'data', 'storage', relativePath);
+  const buffer = await readFile(absolutePath);
+
+  return {
+    path: relativePath,
+    fileName: path.basename(relativePath),
+    buffer,
+    mimeType: getMimeTypeFromExtension(relativePath, fallbackMimeType),
+  };
 }
