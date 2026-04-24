@@ -19,7 +19,19 @@ function coerceParameterValue(
       return value;
     }
 
-    throw new Error(`${definition.label} must be true or false.`);
+    if (typeof value === 'string') {
+      const normalizedValue = value.trim().toLowerCase();
+
+      if (normalizedValue === 'true') {
+        return true;
+      }
+
+      if (normalizedValue === 'false') {
+        return false;
+      }
+    }
+
+    return definition.defaultValue;
   }
 
   if (definition.type === 'number') {
@@ -27,38 +39,53 @@ function coerceParameterValue(
       return value;
     }
 
-    throw new Error(`${definition.label} must be a number.`);
+    if (typeof value === 'string' && value.trim()) {
+      const numericValue = Number(value);
+
+      if (Number.isFinite(numericValue)) {
+        return numericValue;
+      }
+    }
+
+    return definition.defaultValue;
   }
 
   if (typeof value === 'string' || typeof value === 'number') {
     return value;
   }
 
-  throw new Error(`${definition.label} has an invalid value.`);
+  return definition.defaultValue;
 }
 
 function validateDefinitionValue(
   definition: GenerationParameterDefinition,
   value: GenerationParameterValue,
 ) {
+  let normalizedValue = value;
+
   if (definition.type === 'number' && typeof value === 'number') {
     if (definition.min !== undefined && value < definition.min) {
-      throw new Error(`${definition.label} must be at least ${definition.min}.`);
+      normalizedValue = definition.min;
     }
 
-    if (definition.max !== undefined && value > definition.max) {
-      throw new Error(`${definition.label} must be at most ${definition.max}.`);
+    if (definition.max !== undefined && typeof normalizedValue === 'number' && normalizedValue > definition.max) {
+      normalizedValue = definition.max;
     }
   }
 
   if (definition.type === 'select') {
     const optionValues = definition.options?.map((option) => option.value) ?? [];
-    const comparableValue = typeof value === 'boolean' ? String(value) : value;
+    const comparableValue = typeof normalizedValue === 'boolean' ? String(normalizedValue) : normalizedValue;
+    const matchedOptionValue = optionValues.find((optionValue) => String(optionValue) === String(comparableValue));
 
-    if (!optionValues.some((optionValue) => String(optionValue) === String(comparableValue))) {
-      throw new Error(`${definition.label} must use one of the supported values.`);
+    if (matchedOptionValue === undefined) {
+      normalizedValue = definition.defaultValue;
+    } else {
+      normalizedValue = matchedOptionValue;
     }
   }
+
+  return normalizedValue;
 }
 
 export function normalizeGenerationRequest(
@@ -84,17 +111,14 @@ export function normalizeGenerationRequest(
   }
 
   const trimmedPrompt = payload.prompt.trim();
+  const supportedPrompt = model.capabilities.promptSupport === 'none' ? '' : trimmedPrompt;
 
-  if (model.capabilities.promptSupport === 'required' && !trimmedPrompt) {
+  if (model.capabilities.promptSupport === 'required' && !supportedPrompt) {
     throw new Error('A prompt is required for the selected model.');
   }
 
-  if (model.capabilities.promptSupport === 'none' && trimmedPrompt) {
-    throw new Error(model.promptHelperText);
-  }
-
   const parameterValues = normalizeParameterValues(model, payload.parameterValues);
-  const outputFormat = payload.outputFormat || model.defaultOutputFormat;
+  const outputFormat = (payload.outputFormat || model.defaultOutputFormat).toLowerCase();
 
   if (!model.capabilities.outputFormats.includes(outputFormat)) {
     throw new Error('The selected output format is not supported by this model.');
@@ -104,7 +128,7 @@ export function normalizeGenerationRequest(
     model,
     payload: {
       ...payload,
-      prompt: trimmedPrompt,
+      prompt: supportedPrompt,
       outputFormat,
       parameterValues,
     },
@@ -124,8 +148,7 @@ export function normalizeParameterValues(
     }
 
     const coerced = coerceParameterValue(definition, incomingValues[definition.key]);
-    validateDefinitionValue(definition, coerced);
-    normalized[definition.key] = coerced;
+    normalized[definition.key] = validateDefinitionValue(definition, coerced);
   }
 
   return normalized;

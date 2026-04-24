@@ -4,6 +4,7 @@ import {
   getNumberParameter,
   getStringParameter,
 } from '@/lib/generation/helpers';
+import { getFriendlyGenerationError } from '@/lib/generation/errors';
 import { LightningTrellisClient } from '@/lib/generation/lightning-client';
 import type {
   NormalizedGenerationResult,
@@ -73,12 +74,16 @@ async function startGeneration(context: ProviderExecutionContext): Promise<Provi
   });
 
   const result = normalizeLightningResult(rawResponse);
+  const resolvedResult = {
+    ...result,
+    assetUrl: client.resolveUrl(result.assetUrl),
+  };
 
   return {
     status: 'completed',
-    providerTaskId: result.providerTaskId,
+    providerTaskId: resolvedResult.providerTaskId,
     rawResponse,
-    result,
+    result: resolvedResult,
   };
 }
 
@@ -94,6 +99,6 @@ export const lightningTrellisAdapter: ProviderAdapter = {
     return normalizeLightningResult(rawResponse);
   },
   mapError(error) {
-    return error instanceof Error ? error.message : 'Self-hosted TRELLIS.2 generation failed.';
+    return getFriendlyGenerationError(error);
   },
 };

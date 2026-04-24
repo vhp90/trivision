@@ -1,7 +1,11 @@
 import path from 'node:path';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth/session';
+import { getFriendlyGenerationError } from '@/lib/generation/errors';
 import { LightningTrellisClient } from '@/lib/generation/lightning-client';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   const user = await getAuthenticatedUser();
@@ -44,7 +48,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : 'Background removal failed.' },
+      { message: getFriendlyGenerationError(error) },
       { status: 400 },
     );
   }

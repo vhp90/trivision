@@ -12,12 +12,26 @@ import {
   getMaskImagePathFromProject,
   getProjectByIdForProcessing,
   getSourceImagePathFromProject,
+  incrementGenerationJobAttempt,
   markGenerationJobRunning,
 } from '@/lib/db/repository';
 import type { GenerationInputAsset, GenerationParameterValueMap } from '@/lib/generation/types';
 import { saveRemoteAsset, saveUploadedFile } from '@/lib/storage/local';
 
 const activeJobs = new Map<string, Promise<void>>();
+type GenerationProcessingMode = 'background' | 'sync';
+
+export function resolveGenerationProcessingMode(
+  env: Partial<NodeJS.ProcessEnv> = process.env,
+): GenerationProcessingMode {
+  const configuredMode = env.GENERATION_PROCESSING_MODE?.trim().toLowerCase();
+
+  if (configuredMode === 'background' || configuredMode === 'sync') {
+    return configuredMode;
+  }
+
+  return env.VERCEL ? 'sync' : 'background';
+}
 
 function getFileExtension(fileName: string) {
   return path.extname(fileName).toLowerCase();
@@ -50,6 +64,7 @@ type StartGenerationInput = {
   sourceFile?: File | null;
   maskFile?: File | null;
   sourceProjectId?: string | null;
+  processingMode?: GenerationProcessingMode;
 };
 
 export async function startGeneration(input: StartGenerationInput) {
@@ -131,11 +146,17 @@ export async function startGeneration(input: StartGenerationInput) {
     parameterValues: normalized.payload.parameterValues,
   });
 
-  const queuedPromise = processGenerationJob(draft.jobId).finally(() => {
-    activeJobs.delete(draft.jobId);
-  });
+  const processingMode = input.processingMode ?? resolveGenerationProcessingMode();
 
-  activeJobs.set(draft.jobId, queuedPromise);
+  if (processingMode === 'sync') {
+    await processGenerationJob(draft.jobId);
+  } else {
+    const queuedPromise = processGenerationJob(draft.jobId).finally(() => {
+      activeJobs.delete(draft.jobId);
+    });
+
+    activeJobs.set(draft.jobId, queuedPromise);
+  }
 
   return {
     jobId: draft.jobId,
@@ -198,6 +219,7 @@ export async function processGenerationJob(jobId: string) {
 
     adapter.validateInput(executionContext);
 
+    await incrementGenerationJobAttempt(jobId);
     const providerResult = await adapter.startGeneration(executionContext);
 
     if (providerResult.status !== 'completed' || !providerResult.result) {

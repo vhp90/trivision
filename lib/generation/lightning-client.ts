@@ -1,4 +1,5 @@
 import { generationProviderConfig } from '@/lib/config/app';
+import { fetchWithRetry } from '@/lib/http/fetch-with-retry';
 
 type LightningAssetResponse = {
   id?: string;
@@ -70,9 +71,11 @@ export class LightningTrellisClient {
     buffer: Buffer;
     mimeType: string;
   }) {
-    const response = await fetch(`${this.apiUrl}/rembg`, {
+    const response = await fetchWithRetry(`${this.apiUrl}/rembg`, {
       method: 'POST',
       body: createImageFormData(input.fileName, input.buffer, input.mimeType),
+      retries: 1,
+      timeoutMs: 45000,
     });
 
     if (!response.ok) {
@@ -94,9 +97,11 @@ export class LightningTrellisClient {
       appendOptionalFormField(formData, key, value);
     }
 
-    const response = await fetch(`${this.apiUrl}/generate`, {
+    const response = await fetchWithRetry(`${this.apiUrl}/generate`, {
       method: 'POST',
       body: formData,
+      retries: 1,
+      timeoutMs: 60000,
     });
 
     if (!response.ok) {
@@ -107,7 +112,10 @@ export class LightningTrellisClient {
   }
 
   async downloadAsset(assetUrl: string) {
-    const response = await fetch(this.resolveUrl(assetUrl));
+    const response = await fetchWithRetry(this.resolveUrl(assetUrl), {
+      retries: 2,
+      timeoutMs: 30000,
+    });
 
     if (!response.ok) {
       throw new Error('Lightning TRELLIS returned an asset URL that could not be downloaded.');

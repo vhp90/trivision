@@ -4,8 +4,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Box,
-  ChevronDown,
-  ChevronUp,
   Cuboid,
   Download,
   Grid3X3,
@@ -13,10 +11,14 @@ import {
   Lightbulb,
   Menu,
   Play,
+  RotateCcw,
+  Save,
   ScanSearch,
   Settings,
   Shapes,
+  Star,
   Type,
+  Trash2,
   Upload,
   Video,
 } from 'lucide-react';
@@ -34,6 +36,7 @@ import type {
   GenerationParameterDefinition,
   GenerationParameterValueMap,
 } from '@/lib/generation/types';
+import { getFriendlyGenerationError } from '@/lib/generation/errors';
 import type { ProjectRecord } from '@/lib/db/types';
 import type { MobileSamEditor as MobileSamEditorComponent } from '@/components/mobile-sam-editor';
 
@@ -163,7 +166,10 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
   const [maskCleared, setMaskCleared] = useState(false);
   const [isPreprocessing, setIsPreprocessing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isProjectMutating, setIsProjectMutating] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [projectActionMessage, setProjectActionMessage] = useState('');
+  const [projectName, setProjectName] = useState(project?.name ?? '');
   const [viewerMode, setViewerMode] = useState<ViewerMode>('solid');
   const [lightingMode, setLightingMode] = useState<LightingMode>('neutral');
   const [viewerRevision, setViewerRevision] = useState(0);
@@ -178,6 +184,9 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
   );
   const modelName = formatModelName(currentProject?.name ?? selectedModel.shortLabel ?? studioDefaults.emptyModelName);
   const currentStatus = currentProject?.status ?? 'succeeded';
+  const currentProjectError = currentProject?.errorMessage
+    ? getFriendlyGenerationError(currentProject.errorMessage)
+    : '';
   const autoSaveLabel = currentProject?.autoSaveLabel ?? studioDefaults.emptyAutoSaveLabel;
   const promptDisabled = selectedModel.capabilities.promptSupport === 'none';
   const requiresLightningPreprocess = isLightningTrellisModel(selectedModel.id);
@@ -197,6 +206,7 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
   const activeProcessedPreviewUrl = processedSourcePreviewUrl ?? persistedProcessedPreviewUrl;
   const activeMaskPreviewUrl = maskPreviewUrl ?? (maskCleared ? null : persistedMaskPreviewUrl);
   const isJobActive = isSubmitting || currentProject?.status === 'queued' || currentProject?.status === 'running';
+  const isCurrentProjectActive = currentProject?.status === 'queued' || currentProject?.status === 'running';
   const requiresMask = selectedModel.capabilities.inputKinds.includes('mask');
   const hasMaskForCurrentSource = Boolean(maskFile) || Boolean(!sourceFile && !maskCleared && currentProject?.maskImagePath);
   const exportFileFormat = (currentProject?.outputFormat ?? selectedModel.defaultOutputFormat).toUpperCase();
@@ -207,7 +217,7 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
   const metrics = [
     { label: 'Tris', value: currentProject?.triCount ?? studioContent.viewerMetrics[0].value },
     { label: 'Verts', value: currentProject?.vertCount ?? studioContent.viewerMetrics[1].value },
-    { label: 'FPS', value: currentProject?.fps ?? studioContent.viewerMetrics[2].value, colorClassName: 'text-[#00E676]' },
+    { label: 'FPS', value: currentProject?.fps ?? studioContent.viewerMetrics[2].value, colorClassName: 'text-success' },
   ];
 
   useEffect(() => {
@@ -253,6 +263,10 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
   }, [processedSourcePreviewUrl]);
 
   useEffect(() => {
+    setProjectName(currentProject?.name ?? '');
+  }, [currentProject?.id, currentProject?.name]);
+
+  useEffect(() => {
     const activeJobId = currentProject?.generationJobId;
 
     if (!activeJobId || (currentProject.status !== 'queued' && currentProject.status !== 'running')) {
@@ -260,17 +274,22 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
     }
 
     const intervalId = window.setInterval(async () => {
-      const response = await fetch(`/api/generations/${activeJobId}`, { cache: 'no-store' });
+      try {
+        const response = await fetch(`/api/generations/${activeJobId}`, { cache: 'no-store' });
 
-      if (!response.ok) {
-        return;
-      }
+        if (!response.ok) {
+          setErrorMessage('Unable to refresh generation status. Retrying...');
+          return;
+        }
 
-      const payload = await response.json() as GenerationStatusResponse;
-      setCurrentProject(payload.project);
+        const payload = await response.json() as GenerationStatusResponse;
+        setCurrentProject(payload.project);
 
-      if (payload.project.status === 'succeeded' || payload.project.status === 'failed') {
-        router.refresh();
+        if (payload.project.status === 'succeeded' || payload.project.status === 'failed') {
+          router.refresh();
+        }
+      } catch {
+        setErrorMessage('Network error while refreshing generation status. Retrying...');
       }
     }, generationRuntimeDefaults.pollIntervalMs);
 
@@ -329,29 +348,35 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
     const formData = new FormData();
     formData.append('sourceImage', sourceFile);
 
-    const response = await fetch('/api/providers/lightning/rembg', {
-      method: 'POST',
-      body: formData,
-    });
+    try {
+      const response = await fetch('/api/providers/lightning/rembg', {
+        method: 'POST',
+        body: formData,
+      });
 
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({ message: 'Unable to remove background.' }));
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({ message: 'Unable to remove background.' }));
+        setProcessedSourceFile(null);
+        setProcessedSourcePreviewUrl(null);
+        setErrorMessage(payload.message ?? 'Unable to remove background.');
+        return;
+      }
+
+      const processedBlob = await response.blob();
+      const processedFileName = response.headers.get('X-Processed-Filename') || `${sourceFile.name.replace(/\.[^.]+$/, '')}-rembg.png`;
+      const nextProcessedFile = new File([processedBlob], processedFileName, {
+        type: processedBlob.type || 'image/png',
+      });
+
+      setProcessedSourceFile(nextProcessedFile);
+      setProcessedSourcePreviewUrl(URL.createObjectURL(nextProcessedFile));
+    } catch {
       setProcessedSourceFile(null);
       setProcessedSourcePreviewUrl(null);
+      setErrorMessage('Network error while removing the background.');
+    } finally {
       setIsPreprocessing(false);
-      setErrorMessage(payload.message ?? 'Unable to remove background.');
-      return;
     }
-
-    const processedBlob = await response.blob();
-    const processedFileName = response.headers.get('X-Processed-Filename') || `${sourceFile.name.replace(/\.[^.]+$/, '')}-rembg.png`;
-    const nextProcessedFile = new File([processedBlob], processedFileName, {
-      type: processedBlob.type || 'image/png',
-    });
-
-    setProcessedSourceFile(nextProcessedFile);
-    setProcessedSourcePreviewUrl(URL.createObjectURL(nextProcessedFile));
-    setIsPreprocessing(false);
   };
 
   const handleGenerate = async () => {
@@ -382,43 +407,138 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
     setIsSubmitting(true);
     setErrorMessage('');
 
-    const response = await fetch('/api/generations', {
-      method: 'POST',
-      body: formData,
-    });
+    try {
+      const response = await fetch('/api/generations', {
+        method: 'POST',
+        body: formData,
+      });
 
-    const payload = await response.json().catch(() => null) as
-      | { message?: string; jobId?: string; projectId?: string }
-      | null;
+      const payload = await response.json().catch(() => null) as
+        | { message?: string; jobId?: string; projectId?: string }
+        | null;
 
-    if (!response.ok || !payload?.jobId || !payload?.projectId) {
+      if (!response.ok || !payload?.jobId || !payload?.projectId) {
+        setErrorMessage(payload?.message ?? 'Unable to start generation.');
+        return;
+      }
+
+      const statusResponse = await fetch(`/api/generations/${payload.jobId}`, { cache: 'no-store' });
+
+      if (statusResponse.ok) {
+        const statusPayload = await statusResponse.json() as GenerationStatusResponse;
+        setCurrentProject(statusPayload.project);
+        setMaskCleared(false);
+      } else {
+        setErrorMessage('Generation started, but status could not be refreshed yet.');
+      }
+
+      setSourceFile(null);
+      setProcessedSourceFile(null);
+      setProcessedSourcePreviewUrl(null);
+      setMaskFile(null);
+      setMaskPreviewUrl(null);
+      setMaskOverlayUrl(null);
+      setMaskCleared(false);
+      router.replace(`/studio?projectId=${payload.projectId}`);
+      router.refresh();
+    } catch {
+      setErrorMessage('Network error while starting generation.');
+    } finally {
       setIsSubmitting(false);
-      setErrorMessage(payload?.message ?? 'Unable to start generation.');
+    }
+  };
+
+  const handleProjectUpdate = async (updates: { name?: string; isFavorite?: boolean }) => {
+    if (!currentProject) {
       return;
     }
 
-    const statusResponse = await fetch(`/api/generations/${payload.jobId}`, { cache: 'no-store' });
+    setIsProjectMutating(true);
+    setProjectActionMessage('');
 
-    if (statusResponse.ok) {
-      const statusPayload = await statusResponse.json() as GenerationStatusResponse;
-      setCurrentProject(statusPayload.project);
-      setMaskCleared(false);
+    try {
+      const response = await fetch(`/api/projects/${currentProject.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+      const payload = await response.json().catch(() => null) as { message?: string; project?: ProjectRecord } | null;
+
+      if (!response.ok || !payload?.project) {
+        setProjectActionMessage(payload?.message ?? 'Unable to update this generation.');
+        return;
+      }
+
+      setCurrentProject(payload.project);
+      setProjectActionMessage('Generation updated.');
+      router.refresh();
+    } catch {
+      setProjectActionMessage('Network error while updating this generation.');
+    } finally {
+      setIsProjectMutating(false);
+    }
+  };
+
+  const handleRetryProject = async () => {
+    if (!currentProject) {
+      return;
     }
 
-    setSourceFile(null);
-    setProcessedSourceFile(null);
-    setProcessedSourcePreviewUrl(null);
-    setMaskFile(null);
-    setMaskPreviewUrl(null);
-    setMaskOverlayUrl(null);
-    setMaskCleared(false);
-    setIsSubmitting(false);
-    router.replace(`/studio?projectId=${payload.projectId}`);
-    router.refresh();
+    setIsProjectMutating(true);
+    setProjectActionMessage('');
+
+    try {
+      const response = await fetch(`/api/projects/${currentProject.id}/retry`, {
+        method: 'POST',
+      });
+      const payload = await response.json().catch(() => null) as { message?: string; projectId?: string } | null;
+
+      if (!response.ok || !payload?.projectId) {
+        setProjectActionMessage(payload?.message ?? 'Unable to retry this generation.');
+        return;
+      }
+
+      router.replace(`/studio?projectId=${payload.projectId}`);
+      router.refresh();
+    } catch {
+      setProjectActionMessage('Network error while retrying this generation.');
+    } finally {
+      setIsProjectMutating(false);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!currentProject || !window.confirm(`Delete "${currentProject.name}"?`)) {
+      return;
+    }
+
+    setIsProjectMutating(true);
+    setProjectActionMessage('');
+
+    try {
+      const response = await fetch(`/api/projects/${currentProject.id}`, {
+        method: 'DELETE',
+      });
+      const payload = await response.json().catch(() => null) as { message?: string } | null;
+
+      if (!response.ok) {
+        setProjectActionMessage(payload?.message ?? 'Unable to delete this generation.');
+        return;
+      }
+
+      router.replace('/dashboard');
+      router.refresh();
+    } catch {
+      setProjectActionMessage('Network error while deleting this generation.');
+    } finally {
+      setIsProjectMutating(false);
+    }
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col">
+    <div className="h-dvh w-full overflow-x-auto overflow-y-hidden flex flex-col">
       <header className="h-[40px] flex items-center justify-between border-b border-border-muted bg-surface px-4 shrink-0 z-20">
         <div className="flex items-center gap-4">
           <Link href="/dashboard" className="text-text-muted hover:text-text-main transition-colors flex items-center justify-center">
@@ -442,7 +562,6 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
         <div className="flex items-center gap-3">
           <div title={studioContent.tooltips.model} className="flex items-center gap-2 border border-border-muted rounded bg-background-dark px-2 py-1">
             <span className="font-mono text-[11px] text-text-main">{selectedModel.shortLabel}</span>
-            <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
           </div>
           {downloadHref ? (
             <Link
@@ -463,7 +582,7 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 min-w-[960px] overflow-hidden relative">
         <aside className="w-[320px] flex flex-col border-r border-border-muted bg-surface shrink-0 z-10 relative">
           <div className="p-4 border-b border-border-muted flex items-center gap-2">
             <Type className="w-4 h-4" />
@@ -649,8 +768,61 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
             <div className="border border-border-muted bg-background-dark p-4">
               <div className="text-[11px] font-mono text-text-muted uppercase tracking-wider mb-2">{studioContent.jobStatusTitle}</div>
               <div className="text-[18px] font-display font-bold text-text-main">{getProjectStatusLabel(currentStatus)}</div>
-              {currentProject?.errorMessage ? (
-                <p className="text-[11px] font-mono text-error mt-2">{currentProject.errorMessage}</p>
+              {currentProjectError ? (
+                <p className="text-[11px] font-mono text-error mt-2">{currentProjectError}</p>
+              ) : null}
+              {currentProject ? (
+                <div className="mt-4 space-y-3">
+                  <label className="flex flex-col gap-2">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-text-muted">Asset Name</span>
+                    <input
+                      value={projectName}
+                      onChange={(event) => setProjectName(event.target.value)}
+                      className="h-9 border border-border-muted bg-surface px-3 text-[12px] text-text-main focus:border-primary focus:outline-none"
+                    />
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    <button
+                      type="button"
+                      disabled={isProjectMutating || !projectName.trim() || projectName.trim() === currentProject.name}
+                      onClick={() => handleProjectUpdate({ name: projectName })}
+                      title="Save name"
+                      className="h-9 border border-border-muted text-text-muted hover:text-primary hover:border-primary disabled:opacity-50 transition-colors flex items-center justify-center"
+                    >
+                      <Save className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isProjectMutating}
+                      onClick={() => handleProjectUpdate({ isFavorite: !currentProject.isFavorite })}
+                      title={currentProject.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                      className={`h-9 border border-border-muted transition-colors flex items-center justify-center disabled:opacity-50 ${currentProject.isFavorite ? 'text-primary bg-primary/10' : 'text-text-muted hover:text-primary hover:border-primary'}`}
+                    >
+                      <Star className={`h-4 w-4 ${currentProject.isFavorite ? 'fill-current' : ''}`} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isProjectMutating || isCurrentProjectActive}
+                      onClick={handleRetryProject}
+                      title="Retry generation"
+                      className="h-9 border border-border-muted text-text-muted hover:text-primary hover:border-primary disabled:opacity-50 transition-colors flex items-center justify-center"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isProjectMutating || isCurrentProjectActive}
+                      onClick={handleDeleteProject}
+                      title="Delete generation"
+                      className="h-9 border border-border-muted text-text-muted hover:text-error hover:border-error/60 disabled:opacity-50 transition-colors flex items-center justify-center"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  {projectActionMessage ? (
+                    <p className="text-[11px] font-mono text-text-muted">{projectActionMessage}</p>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           </div>
@@ -800,7 +972,6 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
                   <ImageIcon className="w-4 h-4 text-text-muted" />
                   {studioContent.sourcePreviewTitle}
                 </span>
-                <ChevronUp className="w-4 h-4 text-text-muted" />
               </div>
               <div className="border border-border-muted bg-background-dark aspect-square overflow-hidden relative">
                 {sourcePreviewUrl ? (
@@ -837,7 +1008,6 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
                     <ImageIcon className="w-4 h-4 text-text-muted" />
                     {studioContent.lightningPrepPreviewTitle}
                   </span>
-                  <ChevronDown className="w-4 h-4 text-text-muted" />
                 </div>
                 <div className="border border-border-muted bg-background-dark aspect-square overflow-hidden relative">
                   {activeProcessedPreviewUrl ? (
@@ -863,7 +1033,6 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
                     <ScanSearch className="w-4 h-4 text-text-muted" />
                     {studioContent.maskPreviewTitle}
                   </span>
-                  <ChevronDown className="w-4 h-4 text-text-muted" />
                 </div>
                 <div className="border border-border-muted bg-background-dark aspect-square overflow-hidden relative">
                   {activeMaskPreviewUrl ? (
@@ -890,7 +1059,6 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
                   <Settings className="w-4 h-4 text-text-muted" />
                   {studioContent.generationParametersTitle}
                 </span>
-                <ChevronDown className="w-4 h-4 text-text-muted" />
               </div>
 
               {parameterGroups.map((group) => (

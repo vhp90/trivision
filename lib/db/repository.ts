@@ -5,6 +5,8 @@ import { newUserProfileDefaults, projectRecordDefaults } from '@/lib/config/app'
 import { getGenerationModel, getModelParameterDefaults } from '@/lib/generation/registry';
 import type { GenerationParameterValueMap, GenerationRequestPayload } from '@/lib/generation/types';
 import { getDatabaseClient, provisionNewUser } from '@/lib/db/client';
+import type { ProjectUpdateInput } from '@/lib/db/project-actions';
+import { normalizeProjectUpdateInput } from '@/lib/db/project-actions';
 import type {
   GenerationJobSummary,
   LoginPayload,
@@ -377,6 +379,130 @@ export async function updateUserSettings(input: {
   }
 }
 
+export async function updateProjectForUser(input: {
+  userId: string;
+  projectId: string;
+  updates: ProjectUpdateInput;
+}) {
+  const normalized = normalizeProjectUpdateInput(input.updates);
+  const currentProject = await getProjectById(input.userId, input.projectId);
+
+  if (!currentProject) {
+    return null;
+  }
+
+  if (!normalized.name && normalized.isFavorite === undefined) {
+    return currentProject;
+  }
+
+  const db = await getDatabaseClient();
+  const assignments: string[] = [];
+  const args: Array<string | number> = [];
+
+  if (normalized.name) {
+    assignments.push('name = ?');
+    args.push(normalized.name);
+  }
+
+  if (normalized.isFavorite !== undefined) {
+    assignments.push('is_favorite = ?');
+    args.push(normalized.isFavorite ? 1 : 0);
+  }
+
+  assignments.push('updated_label = ?');
+  args.push(projectRecordDefaults.updatedLabel);
+  args.push(input.projectId, input.userId);
+
+  await db.execute({
+    sql: `
+      UPDATE projects
+      SET ${assignments.join(', ')}
+      WHERE id = ? AND user_id = ?
+    `,
+    args,
+  });
+
+  if (
+    normalized.isFavorite !== undefined
+    && normalized.isFavorite !== currentProject.isFavorite
+  ) {
+    await db.execute({
+      sql: `
+        UPDATE workspaces
+        SET favorite_count = MAX(0, favorite_count + ?)
+        WHERE id = ? AND user_id = ?
+      `,
+      args: [normalized.isFavorite ? 1 : -1, currentProject.workspaceId, input.userId],
+    });
+  }
+
+  return getProjectById(input.userId, input.projectId);
+}
+
+export async function getProjectAssetReferenceCounts(paths: string[]) {
+  const uniquePaths = Array.from(new Set(paths.filter(Boolean)));
+
+  if (uniquePaths.length === 0) {
+    return new Map<string, number>();
+  }
+
+  const db = await getDatabaseClient();
+  const counts = new Map<string, number>();
+
+  for (const assetPath of uniquePaths) {
+    const result = await db.execute({
+      sql: `
+        SELECT COUNT(*) AS count
+        FROM projects
+        WHERE source_image_path = ?
+           OR mask_image_path = ?
+           OR output_asset_path = ?
+      `,
+      args: [assetPath, assetPath, assetPath],
+    });
+
+    counts.set(assetPath, Number(result.rows[0]?.count ?? 0));
+  }
+
+  return counts;
+}
+
+export async function deleteProjectForUser(input: { userId: string; projectId: string }) {
+  const project = await getProjectById(input.userId, input.projectId);
+
+  if (!project) {
+    return null;
+  }
+
+  const db = await getDatabaseClient();
+
+  await db.batch(
+    [
+      {
+        sql: 'DELETE FROM generation_jobs WHERE project_id = ? AND user_id = ?',
+        args: [input.projectId, input.userId],
+      },
+      {
+        sql: 'DELETE FROM projects WHERE id = ? AND user_id = ?',
+        args: [input.projectId, input.userId],
+      },
+      {
+        sql: `
+          UPDATE workspaces
+          SET project_count = MAX(0, project_count - 1),
+              favorite_count = MAX(0, favorite_count - ?),
+              updated_label = ?
+          WHERE id = ? AND user_id = ?
+        `,
+        args: [project.isFavorite ? 1 : 0, projectRecordDefaults.workspaceUpdatedLabel, project.workspaceId, input.userId],
+      },
+    ],
+    'write',
+  );
+
+  return project;
+}
+
 async function getPrimaryWorkspace(userId: string) {
   const db = await getDatabaseClient();
   const workspaceResult = await db.execute({
@@ -564,6 +690,21 @@ export async function markGenerationJobRunning(jobId: string) {
       WHERE generation_job_id = ?
     `,
     args: [jobId],
+  });
+}
+
+export async function incrementGenerationJobAttempt(jobId: string) {
+  const db = await getDatabaseClient();
+  const now = new Date().toISOString();
+
+  await db.execute({
+    sql: `
+      UPDATE generation_jobs
+      SET attempt_count = attempt_count + 1,
+          updated_at = ?
+      WHERE id = ?
+    `,
+    args: [now, jobId],
   });
 }
 

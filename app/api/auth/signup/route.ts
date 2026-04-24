@@ -3,11 +3,15 @@ import { createUserSession } from '@/lib/auth/session';
 import { signupUser } from '@/lib/db/repository';
 
 export async function POST(request: Request) {
-  const body = await request.json() as {
+  const body = await request.json().catch(() => null) as {
     fullName?: string;
     email?: string;
     password?: string;
-  };
+  } | null;
+
+  if (!body) {
+    return NextResponse.json({ message: 'Invalid signup request.' }, { status: 400 });
+  }
 
   const fullName = body.fullName?.trim();
   const email = body.email?.trim();

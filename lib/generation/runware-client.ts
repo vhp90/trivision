@@ -1,4 +1,5 @@
 import { createGenerationTaskId } from '@/lib/generation/helpers';
+import { fetchWithRetry } from '@/lib/http/fetch-with-retry';
 
 const RUNWARE_API_URL = process.env.RUNWARE_API_URL ?? 'https://api.runware.ai/v1';
 
@@ -79,13 +80,15 @@ export class RunwareClient {
   }
 
   async request(tasks: Array<Record<string, unknown>>) {
-    const response = await fetch(RUNWARE_API_URL, {
+    const response = await fetchWithRetry(RUNWARE_API_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(tasks),
+      retries: 2,
+      timeoutMs: 45000,
     });
 
     const rawResponse = await response.json().catch(() => null);

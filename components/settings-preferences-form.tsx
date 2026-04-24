@@ -64,24 +64,29 @@ export function SettingsPreferencesForm({ sections }: SettingsPreferencesFormPro
       })),
     );
 
-    const response = await fetch('/api/account/settings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ updates }),
-    });
+    try {
+      const response = await fetch('/api/account/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ updates }),
+      });
 
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({ message: 'Unable to save settings.' }));
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({ message: 'Unable to save settings.' }));
+        setStatus('error');
+        setMessage(payload.message ?? 'Unable to save settings.');
+        return;
+      }
+
+      setStatus('saved');
+      setMessage('Settings saved.');
+      router.refresh();
+    } catch {
       setStatus('error');
-      setMessage(payload.message ?? 'Unable to save settings.');
-      return;
+      setMessage('Network error. Check your connection and try again.');
     }
-
-    setStatus('saved');
-    setMessage('Settings saved.');
-    router.refresh();
   }
 
   return (

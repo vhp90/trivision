@@ -10,6 +10,14 @@ type ProjectAssetRouteProps = {
   }>;
 };
 
+function getAssetFilename(filePath: string) {
+  try {
+    return path.basename(new URL(filePath).pathname);
+  } catch {
+    return path.basename(filePath);
+  }
+}
+
 export async function GET(request: Request, { params }: ProjectAssetRouteProps) {
   const user = await getAuthenticatedUser();
 
@@ -46,7 +54,7 @@ export async function GET(request: Request, { params }: ProjectAssetRouteProps) 
         'Cache-Control': 'private, max-age=60',
         ...(shouldDownload
           ? {
-            'Content-Disposition': `attachment; filename="${requestedFilename || path.basename(relativePath)}"`,
+            'Content-Disposition': `attachment; filename="${requestedFilename || getAssetFilename(relativePath)}"`,
           }
           : {}),
       },

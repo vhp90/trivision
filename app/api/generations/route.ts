@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth/session';
+import { getFriendlyGenerationError } from '@/lib/generation/errors';
 import { startGeneration } from '@/lib/generation/service';
 import type { GenerationParameterValueMap } from '@/lib/generation/types';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   const user = await getAuthenticatedUser();
@@ -51,7 +55,7 @@ export async function POST(request: Request) {
     return NextResponse.json(result, { status: 202 });
   } catch (error) {
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : 'Unable to start generation.' },
+      { message: getFriendlyGenerationError(error) },
       { status: 400 },
     );
   }

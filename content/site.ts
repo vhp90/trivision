@@ -7,7 +7,7 @@ import {
   UserRound,
   type LucideIcon,
 } from 'lucide-react';
-import { authVisualDiagnostics, runtimeDefaults, studioDefaults } from '@/lib/config/app';
+import { runtimeDefaults, studioDefaults } from '@/lib/config/app';
 
 export const brand = {
   name: 'Trivision',
@@ -60,8 +60,13 @@ export const authShellContent = {
 } as const;
 
 export const authVisualContent = {
-  panelStatus: 'Local Workspace Ready',
-  panelDiagnostics: authVisualDiagnostics,
+  panelStatus: 'Private demo workspace',
+  panelTitle: 'Generate, review, and manage 3D assets from one account.',
+  panelItems: [
+    'Provider failures show clear recovery messages.',
+    'Failed generations can be retried from the dashboard or studio.',
+    'Saved assets can be renamed, favorited, deleted, and downloaded.',
+  ],
 } as const;
 
 export type DashboardNavItem = {
@@ -212,13 +217,9 @@ export const studioContent = {
   viewerMetrics: [
     { label: 'Tris', value: studioDefaults.emptyMetrics.tris },
     { label: 'Verts', value: studioDefaults.emptyMetrics.verts },
-    { label: 'FPS', value: studioDefaults.emptyMetrics.fps, colorClassName: 'text-[#00E676]' },
+    { label: 'FPS', value: studioDefaults.emptyMetrics.fps, colorClassName: 'text-success' },
   ],
   overlay: {
-    mascot: `  /\\_/\\\\
- ( o.o )
-  > ^ <
-GENERATING`,
     compilerTitle: 'Compiler Log',
     lines: [
       `> Initializing Trivision Engine ${runtimeDefaults.engineVersion}`,

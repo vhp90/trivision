@@ -8,21 +8,6 @@ export const runtimeDefaults = {
   authFooterLabel: 'LOCAL AUTH // ACTIVE',
 } as const;
 
-export const authVisualDiagnostics = [
-  {
-    label: 'DATA_STREAM_ACTIVE //',
-    value: 'LOCAL_DB_CONNECTED',
-  },
-  {
-    label: 'LATENCY:',
-    value: runtimeDefaults.localLatencyLabel,
-  },
-  {
-    label: 'RUNTIME:',
-    value: 'LOCAL_SQLITE',
-  },
-] as const;
-
 export const generationRuntimeDefaults = {
   outputFormat: 'glb',
   pollIntervalMs: 3000,

@@ -19,16 +19,35 @@ import type {
 const SCHEMA_VERSION = '4';
 const dataDirectory = path.join(process.cwd(), 'data');
 const databasePath = path.join(dataDirectory, 'trivision.local.db');
-const databaseUrl = `file:${databasePath}`;
 
 let initializationPromise: Promise<void> | null = null;
 let client: ReturnType<typeof createClient> | null = null;
 
+export function resolveDatabaseConfig(env: Partial<NodeJS.ProcessEnv> = process.env) {
+  const remoteUrl = env.DATABASE_URL?.trim() || env.TURSO_DATABASE_URL?.trim();
+  const authToken = env.DATABASE_AUTH_TOKEN?.trim() || env.TURSO_AUTH_TOKEN?.trim();
+
+  if (remoteUrl) {
+    return {
+      url: remoteUrl,
+      authToken: authToken || undefined,
+      isLocalFile: false,
+    };
+  }
+
+  return {
+    url: `file:${databasePath}`,
+    authToken: undefined,
+    isLocalFile: true,
+  };
+}
+
 function getClientInstance() {
   if (!client) {
-    client = createClient({
-      url: databaseUrl,
-    });
+    const databaseConfig = resolveDatabaseConfig();
+    client = createClient(databaseConfig.authToken
+      ? { url: databaseConfig.url, authToken: databaseConfig.authToken }
+      : { url: databaseConfig.url });
   }
 
   return client;
@@ -193,23 +212,13 @@ async function seedDatabase() {
   await bootstrapUserData(clientInstance, testAccount.profile, { includeDemoData: true });
 }
 
-async function resetSchema(clientInstance: ReturnType<typeof createClient>) {
-  await clientInstance.batch(
-    [
-      { sql: 'DROP TABLE IF EXISTS generation_jobs' },
-      { sql: 'DROP TABLE IF EXISTS sessions' },
-      { sql: 'DROP TABLE IF EXISTS settings' },
-      { sql: 'DROP TABLE IF EXISTS projects' },
-      { sql: 'DROP TABLE IF EXISTS workspaces' },
-      { sql: 'DROP TABLE IF EXISTS users' },
-      { sql: 'DROP TABLE IF EXISTS app_meta' },
-    ],
-    'write',
-  );
-}
-
 async function initializeDatabase() {
-  await mkdir(dataDirectory, { recursive: true });
+  const databaseConfig = resolveDatabaseConfig();
+
+  if (databaseConfig.isLocalFile) {
+    await mkdir(dataDirectory, { recursive: true });
+  }
+
   const clientInstance = getClientInstance();
 
   await clientInstance.execute(`
@@ -218,17 +227,6 @@ async function initializeDatabase() {
       value TEXT NOT NULL
     )
   `);
-
-  const versionResult = await clientInstance.execute({
-    sql: 'SELECT value FROM app_meta WHERE key = ? LIMIT 1',
-    args: ['schema_version'],
-  });
-
-  const currentVersion = versionResult.rows[0]?.value ? String(versionResult.rows[0].value) : null;
-
-  if (currentVersion !== SCHEMA_VERSION) {
-    await resetSchema(clientInstance);
-  }
 
   await clientInstance.batch(
     [

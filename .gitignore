@@ -12,6 +12,7 @@ yarn-error.log*
 pnpm-debug.log*
 *.tsbuildinfo
 .env*
+!.env.example
 data/*.db
 data/*.jpg
 data/*.jpeg

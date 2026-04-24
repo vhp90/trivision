@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { ArrowRight, Lock, Mail, UserRound, ShieldAlert } from 'lucide-react';
 
 type AuthCredentialFormProps = {
@@ -32,7 +31,6 @@ export function AuthCredentialForm({
   fullNameLabel = 'Name',
   fullNamePlaceholder = 'Your full name',
 }: AuthCredentialFormProps) {
-  const router = useRouter();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,26 +42,31 @@ export function AuthCredentialForm({
     setStatus('submitting');
     setMessage('');
 
-    const response = await fetch(mode === 'login' ? '/api/auth/login' : '/api/auth/signup', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(
-        mode === 'login'
-          ? { email, password }
-          : { fullName, email, password },
-      ),
-    });
+    try {
+      const response = await fetch(mode === 'login' ? '/api/auth/login' : '/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(
+          mode === 'login'
+            ? { email, password }
+            : { fullName, email, password },
+        ),
+      });
 
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({ message: 'Unable to complete request.' }));
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({ message: 'Unable to complete request.' }));
+        setStatus('error');
+        setMessage(payload.message ?? 'Unable to complete request.');
+        return;
+      }
+
+      window.location.assign('/dashboard');
+    } catch {
       setStatus('error');
-      setMessage(payload.message ?? 'Unable to complete request.');
-      return;
+      setMessage('Network error. Check your connection and try again.');
     }
-
-    router.replace('/dashboard');
   };
 
   return (

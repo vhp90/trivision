@@ -19,24 +19,29 @@ export function ProfileForm({ user }: ProfileFormProps) {
     setStatus('saving');
     setMessage('');
 
-    const response = await fetch('/api/account/profile', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ fullName }),
-    });
+    try {
+      const response = await fetch('/api/account/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fullName }),
+      });
 
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({ message: 'Unable to save profile.' }));
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({ message: 'Unable to save profile.' }));
+        setStatus('error');
+        setMessage(payload.message ?? 'Unable to save profile.');
+        return;
+      }
+
+      setStatus('saved');
+      setMessage('Profile updated.');
+      router.refresh();
+    } catch {
       setStatus('error');
-      setMessage(payload.message ?? 'Unable to save profile.');
-      return;
+      setMessage('Network error. Check your connection and try again.');
     }
-
-    setStatus('saved');
-    setMessage('Profile updated.');
-    router.refresh();
   }
 
   return (

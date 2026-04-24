@@ -1,4 +1,5 @@
 import { createGenerationTaskId, getNumberParameter } from '@/lib/generation/helpers';
+import { getFriendlyGenerationError } from '@/lib/generation/errors';
 import { findTaskResult, RunwareClient } from '@/lib/generation/runware-client';
 import type {
   NormalizedGenerationResult,
@@ -108,6 +109,6 @@ export const samAdapter: ProviderAdapter = {
   startGeneration,
   normalizeResult: normalizeRunware3DResult,
   mapError(error) {
-    return error instanceof Error ? error.message : 'SAM 3D generation failed.';
+    return getFriendlyGenerationError(error);
   },
 };
