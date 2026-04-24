@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { Box } from 'lucide-react';
-import { authShellContent, brand } from '@/content/site';
+import { brand } from '@/content/site';
 import { AuthVisualPanel } from '@/components/auth-visual-panel';
 
 type AuthShellProps = {
@@ -28,10 +28,6 @@ export function AuthShell({ title, subtitle, children }: AuthShellProps) {
           </div>
 
           {children}
-
-          <div className="mt-auto pt-12">
-            <p className="text-[10px] font-mono text-border-muted">{authShellContent.footerLabel}</p>
-          </div>
         </div>
       </div>
 

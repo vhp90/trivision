@@ -31,7 +31,7 @@ export function getFriendlyGenerationError(error: unknown) {
   const message = getErrorMessage(error);
 
   if (providerSetupPatterns.some((pattern) => message.includes(pattern))) {
-    return 'Generation provider is not configured. Check the demo environment settings and try again.';
+    return 'Generation provider is not configured. Check the environment settings and try again.';
   }
 
   if (providerDownloadPatterns.some((pattern) => message.includes(pattern))) {

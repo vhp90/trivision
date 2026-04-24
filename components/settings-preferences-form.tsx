@@ -13,11 +13,11 @@ const hiddenSettingKeys = new Set(['notification-mode']);
 const sectionCopyOverrides: Record<string, { title: string; description: string }> = {
   collaboration: {
     title: 'Runtime Policies',
-    description: 'Local MVP policies that keep your workspace behavior predictable before backend rollout.',
+    description: 'Workspace defaults for predictable generation and export behavior.',
   },
   runtime: {
     title: 'Runtime Policies',
-    description: 'Local MVP policies that keep your workspace behavior predictable before backend rollout.',
+    description: 'Workspace defaults for predictable generation and export behavior.',
   },
 };
 

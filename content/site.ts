@@ -55,20 +55,6 @@ export const loginPageContent = {
   },
 } as const;
 
-export const authShellContent = {
-  footerLabel: runtimeDefaults.authFooterLabel,
-} as const;
-
-export const authVisualContent = {
-  panelStatus: 'Private demo workspace',
-  panelTitle: 'Generate, review, and manage 3D assets from one account.',
-  panelItems: [
-    'Provider failures show clear recovery messages.',
-    'Failed generations can be retried from the dashboard or studio.',
-    'Saved assets can be renamed, favorited, deleted, and downloaded.',
-  ],
-} as const;
-
 export type DashboardNavItem = {
   id: string;
   label: string;
@@ -135,7 +121,7 @@ export const dashboardContent: {
 
 export const signupPageContent = {
   title: 'Create Account',
-  subtitle: 'Provision a local workspace account now so the app behaves like a real authenticated product before Supabase arrives.',
+  subtitle: 'Create your Trivision Studio workspace account.',
   form: {
     fullNameLabel: 'Name',
     fullNamePlaceholder: 'Your full name',
@@ -152,23 +138,23 @@ export const signupPageContent = {
 export const collectionPageContent = {
   workspaces: {
     title: 'Workspaces',
-    description: 'Organize experiments, active pipelines, and review-ready batches under one consistent console shell.',
+    description: 'Organize active pipelines, experiments, and review-ready assets in one workspace.',
   },
   recent: {
     title: 'Recent Generations',
-    description: 'Everything generated or updated recently, ordered the way production operators expect to scan it.',
+    description: 'Browse your latest generated assets and continue from previous results.',
   },
   favorites: {
     title: 'Favorites',
-    description: 'Pinned assets that are stable enough to guide future generations, reviews, and exports.',
+    description: 'Pinned assets for quick access during review and iteration.',
   },
   profile: {
     title: 'Profile',
-    description: 'Manage the identity and account details attached to your local studio workspace.',
+    description: 'Manage the identity and account details attached to your studio workspace.',
   },
   settings: {
     title: 'Settings',
-    description: 'Review and update workspace defaults so the local MVP behaves closer to production.',
+    description: 'Review and update workspace defaults for generation and export.',
   },
 } as const;
 
@@ -224,7 +210,7 @@ export const studioContent = {
     lines: [
       `> Initializing Trivision Engine ${runtimeDefaults.engineVersion}`,
       '> Validating prompt payload...',
-      '> Preparing local workspace record...',
+      '> Preparing workspace record...',
       '> Allocating draft geometry buffers...',
     ],
     progressPrefix: '> Generating base voxel mesh',

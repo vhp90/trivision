@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+
+.vercel/
+data/
+output/
+coverage/
+.playwright-mcp/
+
+node_modules/
+.next/
+out/
+*.log
+*.pid
+*.tsbuildinfo

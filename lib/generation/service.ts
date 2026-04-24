@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { getGenerationModel } from '@/lib/generation/registry';
 import { getProviderAdapter } from '@/lib/generation/providers';
@@ -16,7 +15,7 @@ import {
   markGenerationJobRunning,
 } from '@/lib/db/repository';
 import type { GenerationInputAsset, GenerationParameterValueMap } from '@/lib/generation/types';
-import { saveRemoteAsset, saveUploadedFile } from '@/lib/storage/local';
+import { readStoredFile, saveRemoteAsset, saveUploadedFile } from '@/lib/storage/local';
 
 const activeJobs = new Map<string, Promise<void>>();
 type GenerationProcessingMode = 'background' | 'sync';
@@ -255,8 +254,7 @@ export async function processGenerationJob(jobId: string) {
 }
 
 async function loadGenerationAsset(relativePath: string, fallbackMimeType: string): Promise<GenerationInputAsset> {
-  const absolutePath = path.join(process.cwd(), 'data', 'storage', relativePath);
-  const buffer = await readFile(absolutePath);
+  const buffer = await readStoredFile(relativePath);
 
   return {
     path: relativePath,

@@ -49,7 +49,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
       <div>
         <h2 className="text-xl font-display font-bold text-text-main">Profile Details</h2>
         <p className="mt-2 text-sm text-text-muted leading-6">
-          Update the account identity shown across the local workspace shell.
+          Update the account identity shown across your workspace.
         </p>
       </div>
 
@@ -90,7 +90,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
 
       <div className="flex items-center justify-between gap-4 border-t border-border-muted pt-5">
         <p className={`text-[11px] font-mono ${status === 'error' ? 'text-error' : 'text-text-muted'}`}>
-          {message || 'Changes are stored in the local MVP workspace database.'}
+          {message || 'Changes are saved to your workspace profile.'}
         </p>
         <button
           type="submit"

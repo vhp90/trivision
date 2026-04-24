@@ -29,7 +29,7 @@ function createDemoProject(input: Partial<ProjectRecord> & Pick<ProjectRecord, '
     triCount: input.triCount ?? projectRecordDefaults.triCount,
     vertCount: input.vertCount ?? projectRecordDefaults.vertCount,
     fps: input.fps ?? projectRecordDefaults.fps,
-    autoSaveLabel: input.autoSaveLabel ?? 'Saved to local workspace',
+    autoSaveLabel: input.autoSaveLabel ?? 'Saved to workspace',
     isFavorite: input.isFavorite ?? false,
     isRecent: input.isRecent ?? true,
     status: input.status ?? 'succeeded',
@@ -222,7 +222,7 @@ export const defaultSettingSections: SettingSection[] = [
   {
     id: 'runtime',
     title: 'Runtime Policies',
-    description: 'Local MVP policies that keep your workspace behavior predictable before backend rollout.',
+    description: 'Workspace defaults for predictable generation and export behavior.',
     items: [
       {
         id: 'review-visibility',

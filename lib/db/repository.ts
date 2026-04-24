@@ -740,7 +740,7 @@ export async function completeGenerationJob(input: {
           format = ?,
           updated_label = 'Ready',
           tris_label = '3D asset ready',
-          auto_save_label = 'Saved to local workspace',
+          auto_save_label = 'Saved to workspace',
           error_message = NULL,
           completed_at = ?
       WHERE generation_job_id = ?

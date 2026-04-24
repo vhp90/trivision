@@ -5,7 +5,6 @@ export const runtimeDefaults = {
   verifiedSessionLabel: 'SESSION: VERIFIED',
   localRegionLabel: 'LOCAL',
   localLatencyLabel: '1ms',
-  authFooterLabel: 'LOCAL AUTH // ACTIVE',
 } as const;
 
 export const generationRuntimeDefaults = {

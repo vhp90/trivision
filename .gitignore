@@ -19,3 +19,6 @@ data/*.jpeg
 data/*.png
 data/*.webp
 data/storage/
+
+.vercel
+.env*.local
