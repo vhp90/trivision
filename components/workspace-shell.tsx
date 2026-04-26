@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { Box } from 'lucide-react';
-import { brand, dashboardContent } from '@/content/site';
+import { dashboardContent } from '@/content/site';
+import { BrandMark } from '@/components/brand-mark';
 import type { ShellSummary } from '@/lib/db/types';
 
 type WorkspaceShellProps = {
@@ -25,11 +25,8 @@ export function WorkspaceShell({
     <div className="h-screen flex flex-col overflow-hidden">
       <header className="flex items-center justify-between whitespace-nowrap border-b border-border-muted bg-surface px-6 py-3 h-16 shrink-0">
         <div className="flex items-center gap-4">
-          <Link href="/" prefetch={false} className="flex items-center gap-3 text-text-main">
-            <div className="w-5 h-5 text-primary">
-              <Box className="w-full h-full" />
-            </div>
-            <h2 className="text-xl font-display font-bold leading-tight tracking-tight">{brand.name}</h2>
+          <Link href="/" prefetch={false} aria-label="Trivision home">
+            <BrandMark size="sm" />
           </Link>
           <div className="hidden lg:flex flex-col">
             <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">{summary.user.roleLabel}</span>

@@ -17,26 +17,64 @@ export const brand = {
 } as const;
 
 export const landingPageContent = {
-  statusLabel: 'Engine v2.4 Online',
+  statusLabel: '3D Asset Generation Workspace',
   heading: {
-    primary: 'Sculpt the Virtual.',
-    secondary: 'At the Speed of Thought.',
+    primary: 'Trivision',
+    secondary: 'Turn reference images into review-ready 3D assets.',
   },
   description:
-    'The next-generation text-to-3D engine. Build immersive worlds, assets, and environments directly in your browser with zero context-switching.',
+    'Upload a source image, prepare the subject, generate a 3D asset, and manage every result from one focused studio interface.',
   primaryCta: {
-    href: '/dashboard',
-    label: 'Launch Studio',
+    href: '/signup',
+    label: 'Start Creating',
   },
-  terminalLines: [
-    '> Initializing WebGL context... [OK]',
-    '> Loading neural networks... [OK]',
-    '> Awaiting user input_',
+  secondaryCta: {
+    href: '/login',
+    label: 'Sign In',
+  },
+  workflow: [
+    {
+      title: 'Import',
+      description: 'Start from a product shot, concept frame, or object reference.',
+    },
+    {
+      title: 'Prepare',
+      description: 'Clean the subject with background removal or mask-guided selection.',
+    },
+    {
+      title: 'Generate',
+      description: 'Run provider-backed 3D generation with model-specific controls.',
+    },
+    {
+      title: 'Review',
+      description: 'Preview, download, favorite, retry, or rename the generated asset.',
+    },
   ],
-  footer: {
-    left: 'SYS.TRIVISION.GEN // ACTIVE',
-    right: 'STATUS: OPTIMAL',
-  },
+  capabilities: [
+    {
+      eyebrow: 'Studio',
+      title: 'A focused workspace for asset iteration',
+      description:
+        'Trivision keeps upload, masking, generation controls, status tracking, and preview in one visual flow so each attempt is easy to understand and repeat.',
+    },
+    {
+      eyebrow: 'Pipeline',
+      title: 'Built for image-to-3D workflows',
+      description:
+        'Reference images, optional segmentation masks, Lightning preprocessing, and model parameters stay attached to the generated asset record.',
+    },
+    {
+      eyebrow: 'Library',
+      title: 'Generated assets stay manageable',
+      description:
+        'Recent work, favorites, retries, downloads, and project updates are available from the dashboard and studio views.',
+    },
+  ],
+  modelSurfaces: [
+    'TRELLIS.2',
+    'Lightning TRELLIS.2',
+    'SAM 3D Objects',
+  ],
 } as const;
 
 export const loginPageContent = {
