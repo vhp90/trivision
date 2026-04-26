@@ -79,12 +79,12 @@ export function ProfileForm({ user }: ProfileFormProps) {
           <div className="mt-2 text-sm text-text-main">{user.roleLabel}</div>
         </div>
         <div className="border border-border-muted bg-background-dark p-4">
-          <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Region</div>
-          <div className="mt-2 text-sm text-text-main">{user.region}</div>
+          <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Initials</div>
+          <div className="mt-2 text-sm text-text-main">{user.initials}</div>
         </div>
         <div className="border border-border-muted bg-background-dark p-4">
-          <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Session</div>
-          <div className="mt-2 text-sm text-primary">{user.sessionLabel}</div>
+          <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Account</div>
+          <div className="mt-2 text-sm text-primary">Active</div>
         </div>
       </div>
 

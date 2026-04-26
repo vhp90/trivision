@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Star } from 'lucide-react';
 import { collectionPageContent } from '@/content/site';
 import { requireAuthenticatedUser } from '@/lib/auth/session';
+import { EmptyState } from '@/components/empty-state';
 import { ProjectCard } from '@/components/project-card';
 import { WorkspaceShell } from '@/components/workspace-shell';
 import { getProjects, getShellSummary } from '@/lib/db/repository';
@@ -28,11 +29,21 @@ export default async function FavoritesPage() {
         </Link>
       }
     >
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-        {projects.map((project) => (
-          <ProjectCard key={project.id} project={project} />
-        ))}
-      </div>
+      {projects.length > 0 ? (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+          {projects.map((project) => (
+            <ProjectCard key={project.id} project={project} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon={Star}
+          title="No favorites yet"
+          description="Mark important assets as favorites from the dashboard or studio and they will stay collected here."
+          actionHref="/dashboard"
+          actionLabel="Back to Dashboard"
+        />
+      )}
     </WorkspaceShell>
   );
 }

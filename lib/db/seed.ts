@@ -172,7 +172,7 @@ export const defaultSettingSections: SettingSection[] = [
   {
     id: 'preferences',
     title: 'Workspace Preferences',
-    description: 'Default values applied to every new generation session in local development.',
+    description: 'Default values applied when you start a new generation session.',
     items: [
       {
         id: 'default-model',
@@ -186,18 +186,12 @@ export const defaultSettingSections: SettingSection[] = [
         value: generationRuntimeDefaults.outputFormat.toUpperCase(),
         description: 'Preferred format when exporting generated assets.',
       },
-      {
-        id: 'autosave-interval',
-        label: 'Autosave Interval',
-        value: '2 minutes',
-        description: 'Local checkpoint cadence for studio edits.',
-      },
     ],
   },
   {
     id: 'generation',
     title: 'Generation Defaults',
-    description: 'Production-minded defaults that mirror the current TRELLIS.2 setup.',
+    description: 'Baseline model settings used to keep new assets consistent.',
     items: [
       {
         id: 'default-resolution',
@@ -209,32 +203,13 @@ export const defaultSettingSections: SettingSection[] = [
         id: 'default-texture-size',
         label: 'Default Texture Size',
         value: String(defaultParameters['settings.textureSize'] ?? 2048),
-        description: 'Baseline texture size for local image-to-3D jobs.',
+        description: 'Baseline texture size for image-to-3D jobs.',
       },
       {
         id: 'default-decimation',
         label: 'Default Decimation Target',
         value: String(defaultParameters['settings.decimationTarget'] ?? 500000),
-        description: 'Baseline mesh simplification target for local output assets.',
-      },
-    ],
-  },
-  {
-    id: 'runtime',
-    title: 'Runtime Policies',
-    description: 'Workspace defaults for predictable generation and export behavior.',
-    items: [
-      {
-        id: 'review-visibility',
-        label: 'Review Visibility',
-        value: 'Workspace only',
-        description: 'Keep unfinished generations scoped to the active workspace.',
-      },
-      {
-        id: 'session-retention',
-        label: 'Session Retention',
-        value: '30 days',
-        description: 'Persist local authenticated sessions long enough for normal studio iteration.',
+        description: 'Baseline mesh simplification target for output assets.',
       },
     ],
   },
@@ -246,7 +221,7 @@ export function createEmptyWorkspace(user: UserProfile): WorkspaceSummary {
     userId: user.id,
     name: `${user.fullName.split(' ')[0]}'s Workspace`,
     code: user.initials,
-    description: 'Private workspace for new account setup, iteration, and early production experiments.',
+    description: 'Personal workspace for new asset experiments and iteration.',
     status: 'Primary',
     projectCount: 0,
     favoriteCount: 0,

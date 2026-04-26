@@ -15,6 +15,8 @@ export default async function ProfilePage() {
     getWorkspaces(user.id),
   ]);
   const primaryWorkspace = workspaces.find((workspace) => workspace.isPrimary) ?? workspaces[0] ?? null;
+  const projectCount = workspaces.reduce((total, workspace) => total + workspace.projectCount, 0);
+  const favoriteCount = workspaces.reduce((total, workspace) => total + workspace.favoriteCount, 0);
 
   return (
     <WorkspaceShell
@@ -45,22 +47,30 @@ export default async function ProfilePage() {
                 <div className="mt-2 text-sm text-text-main">{summary.user.roleLabel}</div>
               </div>
               <div className="border border-border-muted bg-background-dark p-4">
-                <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Latency</div>
-                <div className="mt-2 text-sm text-primary">{summary.user.latencyLabel}</div>
+                <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Account</div>
+                <div className="mt-2 text-sm text-primary">Active</div>
               </div>
             </div>
           </div>
 
           <div className="bg-surface border border-border-muted p-6">
-            <h2 className="text-xl font-display font-bold text-text-main">Workspace Coverage</h2>
+            <h2 className="text-xl font-display font-bold text-text-main">Library Summary</h2>
             <div className="mt-5 grid grid-cols-2 gap-4">
               <div className="border border-border-muted bg-background-dark p-4">
                 <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Workspaces</div>
                 <div className="mt-2 text-2xl font-display font-bold text-text-main">{workspaces.length}</div>
               </div>
               <div className="border border-border-muted bg-background-dark p-4">
-                <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Engine</div>
-                <div className="mt-2 text-sm font-mono text-primary">{summary.user.engineVersion}</div>
+                <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Projects</div>
+                <div className="mt-2 text-2xl font-display font-bold text-text-main">{projectCount}</div>
+              </div>
+              <div className="border border-border-muted bg-background-dark p-4">
+                <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Favorites</div>
+                <div className="mt-2 text-2xl font-display font-bold text-text-main">{favoriteCount}</div>
+              </div>
+              <div className="border border-border-muted bg-background-dark p-4">
+                <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Primary</div>
+                <div className="mt-2 truncate text-sm text-primary">{primaryWorkspace?.code ?? 'Ready'}</div>
               </div>
             </div>
           </div>

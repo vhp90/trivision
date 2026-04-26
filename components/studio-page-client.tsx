@@ -37,11 +37,12 @@ import type {
   GenerationParameterValueMap,
 } from '@/lib/generation/types';
 import { getFriendlyGenerationError } from '@/lib/generation/errors';
-import type { ProjectRecord } from '@/lib/db/types';
+import type { ProjectRecord, SettingSection } from '@/lib/db/types';
 import type { MobileSamEditor as MobileSamEditorComponent } from '@/components/mobile-sam-editor';
 
 type StudioPageClientProps = {
   project: ProjectRecord | null;
+  settings: SettingSection[];
 };
 
 type ViewerMode = 'wireframe' | 'solid';
@@ -71,14 +72,61 @@ function getProjectStatusLabel(status: GenerationJobStatus) {
   return studioDefaults.jobStatusLabels[status];
 }
 
-function getInitialModel(project: ProjectRecord | null) {
-  return (project?.modelId && getGenerationModel(project.modelId)) || defaultModel;
+function getSettingValue(settings: SettingSection[], id: string) {
+  return settings
+    .flatMap((section) => section.items)
+    .find((item) => (item.key ?? item.id) === id)?.value;
 }
 
-function getInitialParameterValues(project: ProjectRecord | null) {
-  const model = getInitialModel(project);
+function getModelFromSettings(settings: SettingSection[]) {
+  const preferredModel = getSettingValue(settings, 'default-model');
+
+  if (!preferredModel) {
+    return defaultModel;
+  }
+
+  return generationModels.find((model) =>
+    model.availability === 'enabled'
+    && (model.id === preferredModel || model.shortLabel === preferredModel)
+  ) ?? defaultModel;
+}
+
+function applySettingDefaults(model: typeof generationModels[number], settings: SettingSection[]) {
+  const defaults = getModelParameterDefaults(model);
+  const nextDefaults: GenerationParameterValueMap = { ...defaults };
+  const settingMappings = [
+    { settingId: 'default-resolution', parameterKeys: ['settings.resolution'] },
+    { settingId: 'default-texture-size', parameterKeys: ['settings.textureSize', 'textureSize'] },
+    { settingId: 'default-decimation', parameterKeys: ['settings.decimationTarget', 'simplifyTarget'] },
+  ];
+
+  for (const mapping of settingMappings) {
+    const settingValue = getSettingValue(settings, mapping.settingId);
+
+    if (!settingValue) {
+      continue;
+    }
+
+    for (const parameterKey of mapping.parameterKeys) {
+      if (parameterKey in defaults) {
+        const numericValue = Number(settingValue);
+        nextDefaults[parameterKey] = Number.isNaN(numericValue) ? settingValue : numericValue;
+        break;
+      }
+    }
+  }
+
+  return nextDefaults;
+}
+
+function getInitialModel(project: ProjectRecord | null, settings: SettingSection[]) {
+  return (project?.modelId && getGenerationModel(project.modelId)) || getModelFromSettings(settings);
+}
+
+function getInitialParameterValues(project: ProjectRecord | null, settings: SettingSection[]) {
+  const model = getInitialModel(project, settings);
   return {
-    ...getModelParameterDefaults(model),
+    ...applySettingDefaults(model, settings),
     ...project?.parameterValues,
   };
 }
@@ -149,14 +197,14 @@ function ParameterField({
   );
 }
 
-export function StudioPageClient({ project }: StudioPageClientProps) {
+export function StudioPageClient({ project, settings }: StudioPageClientProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [mobileSamEditor, setMobileSamEditor] = useState<typeof MobileSamEditorComponent | null>(null);
   const [currentProject, setCurrentProject] = useState<ProjectRecord | null>(project);
-  const [selectedModelId, setSelectedModelId] = useState<string>(getInitialModel(project).id);
+  const [selectedModelId, setSelectedModelId] = useState<string>(getInitialModel(project, settings).id);
   const [prompt, setPrompt] = useState<string>(project?.prompt ?? studioDefaults.emptyPrompt);
-  const [parameterValues, setParameterValues] = useState<GenerationParameterValueMap>(getInitialParameterValues(project));
+  const [parameterValues, setParameterValues] = useState<GenerationParameterValueMap>(getInitialParameterValues(project, settings));
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [processedSourceFile, setProcessedSourceFile] = useState<File | null>(null);
   const [processedSourcePreviewUrl, setProcessedSourcePreviewUrl] = useState<string | null>(null);
@@ -319,7 +367,7 @@ export function StudioPageClient({ project }: StudioPageClientProps) {
     }
 
     setSelectedModelId(model.id);
-    setParameterValues(getModelParameterDefaults(model));
+    setParameterValues(applySettingDefaults(model, settings));
     setErrorMessage('');
     setProcessedSourceFile(null);
     setProcessedSourcePreviewUrl(null);

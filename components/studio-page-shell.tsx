@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import type { ProjectRecord } from '@/lib/db/types';
+import type { ProjectRecord, SettingSection } from '@/lib/db/types';
 
 const StudioPageClient = dynamic(
   () => import('@/components/studio-page-client').then((module) => module.StudioPageClient),
@@ -10,8 +10,9 @@ const StudioPageClient = dynamic(
 
 type StudioPageShellProps = {
   project: ProjectRecord | null;
+  settings: SettingSection[];
 };
 
-export function StudioPageShell({ project }: StudioPageShellProps) {
-  return <StudioPageClient project={project} />;
+export function StudioPageShell({ project, settings }: StudioPageShellProps) {
+  return <StudioPageClient project={project} settings={settings} />;
 }

@@ -12,6 +12,23 @@ export default async function SettingsPage() {
     getShellSummary(user.id),
     getSettings(user.id),
   ]);
+  const visibleSettingIds = new Set([
+    'default-model',
+    'default-output-format',
+    'default-resolution',
+    'default-texture-size',
+    'default-decimation',
+  ]);
+  const visibleSections = sections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => visibleSettingIds.has(item.key ?? item.id)),
+    }))
+    .filter((section) => section.items.length > 0);
+  const optionCount = visibleSections.reduce((total, section) => total + section.items.length, 0);
+  const defaultModel = visibleSections
+    .flatMap((section) => section.items)
+    .find((item) => (item.key ?? item.id) === 'default-model')?.value ?? 'Configured';
 
   return (
     <WorkspaceShell
@@ -24,19 +41,23 @@ export default async function SettingsPage() {
         <SettingsPreferencesForm sections={sections} />
 
         <div className="bg-surface border border-border-muted p-6">
-          <h2 className="text-xl font-display font-bold text-text-main">Runtime Snapshot</h2>
+          <h2 className="text-xl font-display font-bold text-text-main">Preference Summary</h2>
           <div className="mt-5 space-y-3">
             <div className="border border-border-muted bg-background-dark p-4">
-              <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Region</div>
-              <div className="mt-2 text-sm text-text-main">{summary.user.region}</div>
+              <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Sections</div>
+              <div className="mt-2 text-2xl font-display font-bold text-text-main">{visibleSections.length}</div>
             </div>
             <div className="border border-border-muted bg-background-dark p-4">
-              <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Session</div>
-              <div className="mt-2 text-sm text-primary">{summary.user.sessionLabel}</div>
+              <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Options</div>
+              <div className="mt-2 text-2xl font-display font-bold text-text-main">{optionCount}</div>
             </div>
             <div className="border border-border-muted bg-background-dark p-4">
-              <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Engine</div>
-              <div className="mt-2 text-sm text-text-main">{summary.user.engineVersion}</div>
+              <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Default Model</div>
+              <div className="mt-2 text-sm text-primary">{defaultModel}</div>
+            </div>
+            <div className="border border-border-muted bg-background-dark p-4">
+              <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">Profile</div>
+              <div className="mt-2 text-sm text-text-main">{summary.user.fullName}</div>
             </div>
           </div>
         </div>

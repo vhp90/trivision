@@ -9,8 +9,21 @@ type SettingsPreferencesFormProps = {
   sections: SettingSection[];
 };
 
-const hiddenSettingKeys = new Set(['notification-mode']);
+const hiddenSettingKeys = new Set([
+  'autosave-interval',
+  'notification-mode',
+  'review-visibility',
+  'session-retention',
+]);
 const sectionCopyOverrides: Record<string, { title: string; description: string }> = {
+  preferences: {
+    title: 'Workspace Preferences',
+    description: 'Default values applied when you start a new generation session.',
+  },
+  generation: {
+    title: 'Generation Defaults',
+    description: 'Baseline model settings used to keep new assets consistent.',
+  },
   collaboration: {
     title: 'Runtime Policies',
     description: 'Workspace defaults for predictable generation and export behavior.',
@@ -21,15 +34,20 @@ const sectionCopyOverrides: Record<string, { title: string; description: string 
   },
 };
 
+const itemDescriptionOverrides: Record<string, string> = {
+  'default-resolution': 'Baseline voxel resolution for new generations.',
+  'default-texture-size': 'Baseline texture size for image-to-3D jobs.',
+  'default-decimation': 'Baseline mesh simplification target for output assets.',
+};
+
 const selectOptions: Record<string, string[]> = {
-  'default-model': generationModels.map((model) => model.shortLabel),
+  'default-model': generationModels
+    .filter((model) => model.availability === 'enabled')
+    .map((model) => model.shortLabel),
   'default-output-format': ['GLB'],
-  'autosave-interval': ['1 minute', '2 minutes', '5 minutes'],
   'default-resolution': ['512', '1024', '1536'],
   'default-texture-size': ['1024', '2048', '3072', '4096'],
   'default-decimation': ['100000', '250000', '500000', '750000', '1000000'],
-  'review-visibility': ['Workspace only', 'Private'],
-  'session-retention': ['7 days', '30 days'],
 };
 
 export function SettingsPreferencesForm({ sections }: SettingsPreferencesFormProps) {
@@ -39,7 +57,12 @@ export function SettingsPreferencesForm({ sections }: SettingsPreferencesFormPro
       .map((section) => ({
         ...section,
         ...(sectionCopyOverrides[section.id] ?? {}),
-        items: section.items.filter((item) => !hiddenSettingKeys.has(item.key ?? item.id)),
+        items: section.items
+          .filter((item) => !hiddenSettingKeys.has(item.key ?? item.id))
+          .map((item) => ({
+            ...item,
+            description: itemDescriptionOverrides[item.key ?? item.id] ?? item.description,
+          })),
       }))
       .filter((section) => section.items.length > 0),
     [sections],
@@ -133,7 +156,7 @@ export function SettingsPreferencesForm({ sections }: SettingsPreferencesFormPro
 
       <div className="flex items-center justify-between gap-4 border border-border-muted bg-surface p-4">
         <p className={`text-[11px] font-mono ${status === 'error' ? 'text-error' : 'text-text-muted'}`}>
-          {message || 'These values are stored locally today and can map cleanly to backend preferences later.'}
+          {message || 'These values are saved as your default studio preferences.'}
         </p>
         <button
           type="submit"

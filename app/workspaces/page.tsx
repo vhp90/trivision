@@ -27,15 +27,15 @@ export default async function WorkspacesPage() {
         </Link>
       }
     >
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {workspaces.map((workspace) => (
-          <div key={workspace.id} className="bg-surface border border-border-muted p-5 flex flex-col gap-5 hover:border-primary transition-colors">
+          <div key={workspace.id} className="flex min-w-0 flex-col gap-5 border border-border-muted bg-surface p-5 transition-colors hover:border-primary">
             <div className="flex items-start justify-between gap-4">
-              <div>
+              <div className="min-w-0">
                 <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-text-muted">{workspace.code}</div>
-                <h2 className="text-xl font-display font-bold text-text-main mt-2">{workspace.name}</h2>
+                <h2 className="mt-2 truncate text-xl font-display font-bold text-text-main">{workspace.name}</h2>
               </div>
-              <span className="text-[10px] font-mono text-primary border border-primary/30 px-2 py-1 uppercase tracking-[0.2em]">{workspace.status}</span>
+              <span className="shrink-0 border border-primary/30 px-2 py-1 text-[10px] font-mono uppercase tracking-[0.2em] text-primary">{workspace.status}</span>
             </div>
             <p className="text-sm text-text-muted leading-6">{workspace.description}</p>
             <div className="grid grid-cols-2 gap-3">
@@ -49,22 +49,22 @@ export default async function WorkspacesPage() {
               </div>
             </div>
             <div className="border-t border-border-muted pt-4 space-y-2">
-              <div className="flex items-center justify-between text-[11px] font-mono">
+              <div className="flex items-center justify-between gap-4 text-[11px] font-mono">
                 <span className="text-text-muted">Primary Focus</span>
-                <span className="text-text-main">{workspace.primaryFocus}</span>
+                <span className="text-right text-text-main">{workspace.primaryFocus}</span>
               </div>
-              <div className="flex items-center justify-between text-[11px] font-mono">
+              <div className="flex items-center justify-between gap-4 text-[11px] font-mono">
                 <span className="text-text-muted">Secondary Focus</span>
-                <span className="text-text-main">{workspace.secondaryFocus}</span>
+                <span className="text-right text-text-main">{workspace.secondaryFocus}</span>
               </div>
-              <div className="flex items-center justify-between text-[11px] font-mono">
+              <div className="flex items-center justify-between gap-4 text-[11px] font-mono">
                 <span className="text-text-muted">Last Activity</span>
-                <span className="text-primary">{workspace.updatedLabel}</span>
+                <span className="text-right text-primary">{workspace.updatedLabel}</span>
               </div>
             </div>
             <Link prefetch={false} href="/dashboard" className="mt-auto h-10 border border-border-muted bg-background-dark hover:border-primary hover:text-primary transition-colors text-sm font-body text-text-main flex items-center justify-center gap-2">
               <FolderOpen className="w-4 h-4" />
-              Open Workspace
+              View Projects
             </Link>
           </div>
         ))}

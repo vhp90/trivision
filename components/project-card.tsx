@@ -3,39 +3,39 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Car, Factory, Globe, Lightbulb, Plus, RotateCcw, Star, Trash2 } from 'lucide-react';
+import { Box, Plus, RotateCcw, Star, Trash2 } from 'lucide-react';
 import { dashboardContent } from '@/content/site';
 import { studioDefaults } from '@/lib/config/app';
 import type { ProjectRecord } from '@/lib/db/types';
 
-const projectVisuals = {
-  factory: {
-    Icon: Factory,
-    containerClassName: 'w-3/4 h-3/4 bg-surface-hover shadow-2xl rotate-12 group-hover:rotate-0 transition-transform duration-700 ease-out border border-border-muted flex items-center justify-center relative',
-    overlayClassName: 'absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500',
-  },
-  lightbulb: {
-    Icon: Lightbulb,
-    containerClassName: 'w-2/3 h-4/5 bg-surface-hover skew-x-6 group-hover:skew-x-0 transition-transform duration-700 ease-out border border-border-muted flex items-center justify-center relative',
-    overlayClassName: 'absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500',
-  },
-  globe: {
-    Icon: Globe,
-    containerClassName: 'w-3/4 h-3/4 rounded-full bg-surface-hover scale-90 group-hover:scale-100 transition-transform duration-700 ease-out border border-border-muted flex items-center justify-center relative shadow-inner',
-    overlayClassName: 'absolute inset-0 rounded-full bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500',
-  },
-  car: {
-    Icon: Car,
-    containerClassName: 'w-4/5 h-2/3 bg-surface-hover -rotate-6 group-hover:rotate-0 transition-transform duration-700 ease-out border border-border-muted flex items-center justify-center relative',
-    overlayClassName: 'absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500',
-  },
-} as const;
+function getStatusClass(status: ProjectRecord['status']) {
+  if (status === 'failed') {
+    return 'border-error/50 bg-error/10 text-error';
+  }
+
+  if (status === 'succeeded') {
+    return 'border-primary/40 bg-primary/10 text-primary';
+  }
+
+  return 'border-border-muted bg-surface text-text-main';
+}
+
+function AssetFallback() {
+  return (
+    <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-[linear-gradient(135deg,rgba(255,170,0,0.08),rgba(255,255,255,0.02)_42%,rgba(0,0,0,0)_42%)]">
+      <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:28px_28px]" />
+      <div className="relative flex h-24 w-24 items-center justify-center border border-border-muted bg-surface shadow-2xl transition-transform duration-500 group-hover:-translate-y-1 group-hover:border-primary/60">
+        <div className="absolute -right-3 -top-3 h-10 w-10 border border-primary/30" />
+        <div className="absolute -bottom-3 -left-3 h-8 w-8 border border-border-muted bg-background-dark" />
+        <Box className="h-9 w-9 text-text-muted transition-colors duration-300 group-hover:text-primary" />
+      </div>
+    </div>
+  );
+}
 
 export function ProjectCard({ project }: { project: ProjectRecord }) {
   const router = useRouter();
   const [isMutating, setIsMutating] = useState(false);
-  const visual = projectVisuals[project.visual];
-  const Icon = visual.Icon;
   const statusLabel = studioDefaults.jobStatusLabels[project.status];
   const sourcePreviewUrl = project.sourceImagePath ? `/api/projects/${project.id}/asset?kind=source` : null;
   const isActive = project.status === 'queued' || project.status === 'running';
@@ -101,9 +101,9 @@ export function ProjectCard({ project }: { project: ProjectRecord }) {
   }
 
   return (
-    <article className="group flex flex-col w-full bg-surface border border-border-muted hover:border-primary transition-colors">
+    <article className="group flex w-full flex-col border border-border-muted bg-surface transition-colors hover:border-primary">
       <Link prefetch={false} href={`/studio?projectId=${project.id}`} className="block">
-        <div className="w-full aspect-square relative overflow-hidden bg-background-dark border-b border-border-muted p-4 flex items-center justify-center">
+        <div className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden border-b border-border-muted bg-background-dark">
           {sourcePreviewUrl ? (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -116,10 +116,7 @@ export function ProjectCard({ project }: { project: ProjectRecord }) {
               <div className="absolute inset-0 bg-gradient-to-t from-background-dark/90 via-background-dark/15 to-transparent"></div>
             </>
           ) : (
-            <div className={visual.containerClassName}>
-              <div className={visual.overlayClassName}></div>
-              <Icon className="w-10 h-10 text-text-muted group-hover:text-primary transition-colors duration-300 z-10" />
-            </div>
+            <AssetFallback />
           )}
           {project.format ? (
             <div className="absolute top-2 right-2 flex gap-1">
@@ -127,7 +124,7 @@ export function ProjectCard({ project }: { project: ProjectRecord }) {
             </div>
           ) : null}
           <div className="absolute bottom-2 left-2">
-            <span className={`text-[10px] font-mono px-1.5 py-0.5 border ${project.status === 'failed' ? 'text-error border-error/40 bg-background-dark/80' : project.status === 'succeeded' ? 'text-primary border-primary/40 bg-background-dark/80' : 'text-text-main border-border-muted bg-background-dark/80'}`}>
+            <span className={`border px-1.5 py-0.5 text-[10px] font-mono ${getStatusClass(project.status)}`}>
               {statusLabel}
             </span>
           </div>
@@ -179,8 +176,8 @@ export function ProjectCard({ project }: { project: ProjectRecord }) {
 
 export function CreateProjectCard() {
   return (
-    <Link prefetch={false} href="/studio" className="group w-full aspect-square bg-surface/50 border border-dashed border-border-muted flex flex-col items-center justify-center gap-3 hover:border-primary hover:bg-surface-hover/50 transition-all duration-300">
-      <div className="w-12 h-12 rounded-full bg-surface border border-border-muted flex items-center justify-center group-hover:bg-primary group-hover:border-primary group-hover:text-background-dark text-text-muted transition-all duration-300">
+    <Link prefetch={false} href="/studio" className="group flex min-h-48 w-full flex-col items-center justify-center gap-3 border border-dashed border-border-muted bg-surface/50 transition-all duration-300 hover:border-primary hover:bg-surface-hover/50">
+      <div className="flex h-12 w-12 items-center justify-center border border-border-muted bg-surface text-text-muted transition-all duration-300 group-hover:border-primary group-hover:bg-primary group-hover:text-background-dark">
         <Plus className="w-6 h-6" />
       </div>
       <span className="text-sm font-display font-medium text-text-muted group-hover:text-primary transition-colors">{dashboardContent.createCardLabel}</span>
