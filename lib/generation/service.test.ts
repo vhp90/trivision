@@ -1,19 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { resolveGenerationProcessingMode } from '@/lib/generation/service';
+import { generationModels, getModelParameterDefaults } from '@/lib/generation/registry';
 
-describe('generation processing mode', () => {
-  it('uses synchronous processing on Vercel by default', () => {
-    expect(resolveGenerationProcessingMode({ VERCEL: '1' })).toBe('sync');
+describe('generation model registry', () => {
+  it('keeps every enabled model self-describing for dynamic controls', () => {
+    for (const model of generationModels.filter((entry) => entry.availability === 'enabled')) {
+      expect(model.id).toBeTruthy();
+      expect(model.providerId).toBeTruthy();
+      expect(model.defaultOutputFormat).toBeTruthy();
+      expect(model.capabilities.outputFormats).toContain(model.defaultOutputFormat);
+      expect(Array.isArray(model.parameters)).toBe(true);
+    }
   });
 
-  it('keeps local development background processing by default', () => {
-    expect(resolveGenerationProcessingMode({})).toBe('background');
-  });
+  it('builds defaults directly from each model parameter schema', () => {
+    for (const model of generationModels) {
+      const defaults = getModelParameterDefaults(model);
 
-  it('allows an explicit mode override', () => {
-    expect(resolveGenerationProcessingMode({
-      VERCEL: '1',
-      GENERATION_PROCESSING_MODE: 'background',
-    })).toBe('background');
+      for (const parameter of model.parameters) {
+        expect(defaults[parameter.key]).toBe(parameter.defaultValue);
+      }
+    }
   });
 });

@@ -6,7 +6,7 @@ import {
   updateProjectForUser,
 } from '@/lib/db/repository';
 import { normalizeProjectUpdateInput } from '@/lib/db/project-actions';
-import { deleteStoredFile } from '@/lib/storage/local';
+import { deleteStoredFile } from '@/lib/storage/blob';
 
 type ProjectRouteProps = {
   params: Promise<{

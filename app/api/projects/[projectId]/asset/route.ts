@@ -2,7 +2,7 @@ import path from 'node:path';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth/session';
 import { getProjectFilePathForUser } from '@/lib/db/repository';
-import { getContentTypeFromPath, readStoredFile } from '@/lib/storage/local';
+import { getContentTypeFromPath, readStoredFile } from '@/lib/storage/blob';
 
 type ProjectAssetRouteProps = {
   params: Promise<{

@@ -15,22 +15,7 @@ import {
   markGenerationJobRunning,
 } from '@/lib/db/repository';
 import type { GenerationInputAsset, GenerationParameterValueMap } from '@/lib/generation/types';
-import { readStoredFile, saveRemoteAsset, saveUploadedFile } from '@/lib/storage/local';
-
-const activeJobs = new Map<string, Promise<void>>();
-type GenerationProcessingMode = 'background' | 'sync';
-
-export function resolveGenerationProcessingMode(
-  env: Partial<NodeJS.ProcessEnv> = process.env,
-): GenerationProcessingMode {
-  const configuredMode = env.GENERATION_PROCESSING_MODE?.trim().toLowerCase();
-
-  if (configuredMode === 'background' || configuredMode === 'sync') {
-    return configuredMode;
-  }
-
-  return env.VERCEL ? 'sync' : 'background';
-}
+import { readStoredFile, saveRemoteAsset, saveUploadedFile } from '@/lib/storage/blob';
 
 function getFileExtension(fileName: string) {
   return path.extname(fileName).toLowerCase();
@@ -63,7 +48,6 @@ type StartGenerationInput = {
   sourceFile?: File | null;
   maskFile?: File | null;
   sourceProjectId?: string | null;
-  processingMode?: GenerationProcessingMode;
 };
 
 export async function startGeneration(input: StartGenerationInput) {
@@ -145,17 +129,7 @@ export async function startGeneration(input: StartGenerationInput) {
     parameterValues: normalized.payload.parameterValues,
   });
 
-  const processingMode = input.processingMode ?? resolveGenerationProcessingMode();
-
-  if (processingMode === 'sync') {
-    await processGenerationJob(draft.jobId);
-  } else {
-    const queuedPromise = processGenerationJob(draft.jobId).finally(() => {
-      activeJobs.delete(draft.jobId);
-    });
-
-    activeJobs.set(draft.jobId, queuedPromise);
-  }
+  await processGenerationJob(draft.jobId);
 
   return {
     jobId: draft.jobId,

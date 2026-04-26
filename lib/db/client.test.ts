@@ -10,14 +10,21 @@ describe('database configuration', () => {
 
     expect(config.url).toBe('libsql://trivision-example.turso.io');
     expect(config.authToken).toBe('secret-token');
-    expect(config.isLocalFile).toBe(false);
   });
 
-  it('falls back to the local file database when no remote URL is configured', () => {
-    const config = resolveDatabaseConfig({});
+  it('requires a hosted database URL', () => {
+    expect(() => resolveDatabaseConfig({})).toThrow('DATABASE_URL is required');
+  });
 
-    expect(config.url).toContain('trivision.local.db');
-    expect(config.url.startsWith('file:')).toBe(true);
-    expect(config.isLocalFile).toBe(true);
+  it('rejects local file databases', () => {
+    expect(() => resolveDatabaseConfig({
+      DATABASE_URL: 'file:./data/trivision.local.db',
+    })).toThrow('Local file databases are no longer supported');
+  });
+
+  it('requires a Turso auth token for libSQL URLs', () => {
+    expect(() => resolveDatabaseConfig({
+      DATABASE_URL: 'libsql://trivision-example.turso.io',
+    })).toThrow('DATABASE_AUTH_TOKEN is required');
   });
 });

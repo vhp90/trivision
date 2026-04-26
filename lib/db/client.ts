@@ -1,24 +1,15 @@
-import { mkdir } from 'node:fs/promises';
-import path from 'node:path';
 import { createClient } from '@libsql/client';
-import { hashPassword } from '@/lib/auth/password';
 import {
   createEmptyWorkspace,
   defaultSettingSections,
-  demoProjects,
-  demoWorkspaces,
-  testAccount,
 } from '@/lib/db/seed';
 import type {
-  ProjectRecord,
   SettingSection,
   UserProfile,
   WorkspaceSummary,
 } from '@/lib/db/types';
 
 const SCHEMA_VERSION = '4';
-const dataDirectory = path.join(process.cwd(), 'data');
-const databasePath = path.join(dataDirectory, 'trivision.local.db');
 
 let initializationPromise: Promise<void> | null = null;
 let client: ReturnType<typeof createClient> | null = null;
@@ -27,18 +18,21 @@ export function resolveDatabaseConfig(env: Partial<NodeJS.ProcessEnv> = process.
   const remoteUrl = env.DATABASE_URL?.trim() || env.TURSO_DATABASE_URL?.trim();
   const authToken = env.DATABASE_AUTH_TOKEN?.trim() || env.TURSO_AUTH_TOKEN?.trim();
 
-  if (remoteUrl) {
-    return {
-      url: remoteUrl,
-      authToken: authToken || undefined,
-      isLocalFile: false,
-    };
+  if (!remoteUrl) {
+    throw new Error('DATABASE_URL is required. Configure the Turso/libSQL URL in Vercel and .env.local.');
+  }
+
+  if (remoteUrl.startsWith('file:')) {
+    throw new Error('Local file databases are no longer supported. Use the Turso/libSQL DATABASE_URL.');
+  }
+
+  if (remoteUrl.startsWith('libsql://') && !authToken) {
+    throw new Error('DATABASE_AUTH_TOKEN is required for Turso/libSQL databases.');
   }
 
   return {
-    url: `file:${databasePath}`,
-    authToken: undefined,
-    isLocalFile: true,
+    url: remoteUrl,
+    authToken: authToken || undefined,
   };
 }
 
@@ -102,58 +96,6 @@ async function insertWorkspace(clientInstance: ReturnType<typeof createClient>, 
   });
 }
 
-async function insertProject(
-  clientInstance: ReturnType<typeof createClient>,
-  project: ProjectRecord,
-  sortOrder: number,
-) {
-  await clientInstance.execute({
-    sql: `
-      INSERT INTO projects (
-        id, user_id, workspace_id, workspace_name, name, format, updated_label, tris_label, visual,
-        prompt, seed, resolution, creativity, detail_level, tri_count, vert_count, fps, auto_save_label,
-        is_favorite, is_recent, sort_order, generation_status, provider_id, model_id, generation_job_id,
-        parameter_values_json, source_image_path, mask_image_path, output_asset_path, output_format, error_message, submitted_at, completed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `,
-    args: [
-      project.id,
-      project.userId,
-      project.workspaceId,
-      project.workspaceName,
-      project.name,
-      project.format,
-      project.updatedLabel,
-      project.trisLabel,
-      project.visual,
-      project.prompt,
-      project.seed,
-      project.resolution,
-      project.creativity,
-      project.detailLevel,
-      project.triCount,
-      project.vertCount,
-      project.fps,
-      project.autoSaveLabel,
-      project.isFavorite ? 1 : 0,
-      project.isRecent ? 1 : 0,
-      sortOrder,
-      project.status,
-      project.providerId,
-      project.modelId,
-      project.generationJobId,
-      JSON.stringify(project.parameterValues),
-      project.sourceImagePath,
-      project.maskImagePath,
-      project.outputAssetPath,
-      project.outputFormat,
-      project.errorMessage,
-      project.submittedAt,
-      project.completedAt,
-    ],
-  });
-}
-
 async function insertSettingSections(
   clientInstance: ReturnType<typeof createClient>,
   userId: string,
@@ -182,43 +124,12 @@ async function insertSettingSections(
   }
 }
 
-async function bootstrapUserData(
-  clientInstance: ReturnType<typeof createClient>,
-  user: UserProfile,
-  options: { includeDemoData: boolean },
-) {
-  if (options.includeDemoData) {
-    for (const workspace of demoWorkspaces) {
-      await insertWorkspace(clientInstance, workspace);
-    }
-
-    for (const [index, project] of demoProjects.entries()) {
-      await insertProject(clientInstance, project, index + 1);
-    }
-
-    await insertSettingSections(clientInstance, user.id, defaultSettingSections);
-    return;
-  }
-
+async function bootstrapUserData(clientInstance: ReturnType<typeof createClient>, user: UserProfile) {
   await insertWorkspace(clientInstance, createEmptyWorkspace(user));
   await insertSettingSections(clientInstance, user.id, defaultSettingSections);
 }
 
-async function seedDatabase() {
-  const clientInstance = getClientInstance();
-  const passwordHash = hashPassword(testAccount.password);
-
-  await insertUser(clientInstance, testAccount.profile, passwordHash);
-  await bootstrapUserData(clientInstance, testAccount.profile, { includeDemoData: true });
-}
-
 async function initializeDatabase() {
-  const databaseConfig = resolveDatabaseConfig();
-
-  if (databaseConfig.isLocalFile) {
-    await mkdir(dataDirectory, { recursive: true });
-  }
-
   const clientInstance = getClientInstance();
 
   await clientInstance.execute(`
@@ -368,12 +279,6 @@ async function initializeDatabase() {
     'write',
   );
 
-  const userCountResult = await clientInstance.execute('SELECT COUNT(*) AS count FROM users');
-  const userCount = Number(userCountResult.rows[0]?.count ?? 0);
-
-  if (userCount === 0) {
-    await seedDatabase();
-  }
 }
 
 export async function getDatabaseClient() {
@@ -388,5 +293,5 @@ export async function getDatabaseClient() {
 export async function provisionNewUser(user: UserProfile, passwordHash: string) {
   const clientInstance = await getDatabaseClient();
   await insertUser(clientInstance, user, passwordHash);
-  await bootstrapUserData(clientInstance, user, { includeDemoData: false });
+  await bootstrapUserData(clientInstance, user);
 }
