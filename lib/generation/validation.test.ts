@@ -24,16 +24,18 @@ describe('generation request normalization', () => {
 
     const values = normalizeParameterValues(model!, {
       seed: '12345',
-      numSamples: '99',
+      decimationTarget: '999999999',
+      preprocessImage: 'false',
       remesh: 'false',
       textureSize: '2048',
       pipelineType: 'unsupported-preset',
     });
 
     expect(values.seed).toBe(12345);
-    expect(values.numSamples).toBe(4);
+    expect(values.decimationTarget).toBe(2000000);
+    expect(values.preprocessImage).toBe(false);
     expect(values.remesh).toBe(false);
     expect(values.textureSize).toBe(2048);
-    expect(values.pipelineType).toBe('1024_cascade');
+    expect(values.pipelineType).toBe('512');
   });
 });

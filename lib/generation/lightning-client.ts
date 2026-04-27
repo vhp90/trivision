@@ -1,33 +1,36 @@
 import { generationProviderConfig } from '@/lib/config/app';
 import { fetchWithRetry } from '@/lib/http/fetch-with-retry';
 
-type LightningAssetResponse = {
-  id?: string;
-  filename?: string;
-  content_type?: string;
-  download_url?: string;
+export type LightningGenerateResponse = {
+  job_id?: string;
+  queue_position?: number;
+  status?: string;
 };
 
-type LightningGenerateResponse = {
-  id?: string;
-  model_id?: string;
-  pipeline_type?: string;
-  seed?: number;
-  elapsed_seconds?: number;
-  download_url?: string;
-  filename?: string;
-  num_vertices?: number;
-  num_faces?: number;
+export type LightningJobStatusResponse = {
+  job_id?: string;
+  status?: string;
+  elapsed_time?: number | null;
+  stage_times?: Record<string, number> | null;
 };
+
+function normalizeLightningApiUrl(apiUrl: string) {
+  const parsedUrl = new URL(apiUrl);
+
+  if (parsedUrl.pathname === '/' || parsedUrl.pathname === '') {
+    parsedUrl.pathname = '/api';
+  }
+
+  return parsedUrl.toString().replace(/\/+$/, '');
+}
 
 function getLightningApiUrl() {
   const apiUrl = generationProviderConfig.lightningTrellisApiUrl;
-
   if (!apiUrl) {
     throw new Error('LIGHTNING_TRELLIS_API_URL is not configured.');
   }
 
-  return apiUrl.replace(/\/+$/, '');
+  return normalizeLightningApiUrl(apiUrl);
 }
 
 async function parseError(response: Response) {
@@ -38,8 +41,8 @@ async function parseError(response: Response) {
   }
 
   try {
-    const payload = JSON.parse(raw) as { detail?: string; message?: string };
-    return payload.detail || payload.message || raw;
+    const payload = JSON.parse(raw) as { detail?: string; message?: string; error?: string };
+    return payload.error || payload.detail || payload.message || raw;
   } catch {
     return raw;
   }
@@ -47,7 +50,7 @@ async function parseError(response: Response) {
 
 function createImageFormData(fileName: string, buffer: Buffer, mimeType: string) {
   const formData = new FormData();
-  formData.append('image', new Blob([new Uint8Array(buffer)], { type: mimeType }), fileName);
+  formData.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), fileName);
   return formData;
 }
 
@@ -63,26 +66,11 @@ export class LightningTrellisClient {
   private readonly apiUrl: string;
 
   constructor(apiUrl = getLightningApiUrl()) {
-    this.apiUrl = apiUrl;
+    this.apiUrl = normalizeLightningApiUrl(apiUrl);
   }
 
-  async removeBackground(input: {
-    fileName: string;
-    buffer: Buffer;
-    mimeType: string;
-  }) {
-    const response = await fetchWithRetry(`${this.apiUrl}/rembg`, {
-      method: 'POST',
-      body: createImageFormData(input.fileName, input.buffer, input.mimeType),
-      retries: 1,
-      timeoutMs: 45000,
-    });
-
-    if (!response.ok) {
-      throw new Error(await parseError(response));
-    }
-
-    return await response.json() as LightningAssetResponse;
+  get baseUrl() {
+    return this.apiUrl;
   }
 
   async generate(input: {
@@ -101,7 +89,7 @@ export class LightningTrellisClient {
       method: 'POST',
       body: formData,
       retries: 1,
-      timeoutMs: 60000,
+      timeoutMs: 45000,
     });
 
     if (!response.ok) {
@@ -111,35 +99,20 @@ export class LightningTrellisClient {
     return await response.json() as LightningGenerateResponse;
   }
 
-  async downloadAsset(assetUrl: string) {
-    const response = await fetchWithRetry(this.resolveUrl(assetUrl), {
+  async getJobStatus(jobId: string) {
+    const response = await fetchWithRetry(`${this.apiUrl}/job/${encodeURIComponent(jobId)}/status`, {
       retries: 2,
-      timeoutMs: 30000,
+      timeoutMs: 20000,
     });
 
     if (!response.ok) {
-      throw new Error('Lightning TRELLIS returned an asset URL that could not be downloaded.');
+      throw new Error(await parseError(response));
     }
 
-    return {
-      buffer: Buffer.from(await response.arrayBuffer()),
-      contentType: response.headers.get('content-type') || 'application/octet-stream',
-    };
+    return await response.json() as LightningJobStatusResponse;
   }
 
-  resolveUrl(assetUrl: string) {
-    const resolvedUrl = new URL(assetUrl, this.apiUrl);
-    const apiUrl = new URL(this.apiUrl);
-
-    if (
-      resolvedUrl.hostname === 'localhost'
-      || resolvedUrl.hostname === '127.0.0.1'
-      || resolvedUrl.hostname === '0.0.0.0'
-    ) {
-      resolvedUrl.protocol = apiUrl.protocol;
-      resolvedUrl.host = apiUrl.host;
-    }
-
-    return resolvedUrl.toString();
+  getResultUrl(jobId: string) {
+    return `${this.apiUrl}/job/${encodeURIComponent(jobId)}/result`;
   }
 }

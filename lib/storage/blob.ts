@@ -80,7 +80,7 @@ export async function saveRemoteFile(input: {
 }) {
   const response = await fetchWithRetry(input.assetUrl, {
     retries: 1,
-    timeoutMs: 25000,
+    timeoutMs: 55000,
   });
 
   if (!response.ok) {
