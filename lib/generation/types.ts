@@ -86,6 +86,7 @@ export type Runware3DRequest = {
   positivePrompt?: string;
   outputFormat?: string;
   seed?: number;
+  numberResults?: number;
   settings?: Record<string, unknown>;
   deliveryMethod?: 'async' | 'sync';
 };

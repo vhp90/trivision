@@ -2,6 +2,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { hashPassword, verifyPassword } from '@/lib/auth/password';
 import { newUserProfileDefaults, projectRecordDefaults } from '@/lib/config/app';
+import { defaultSettingSections } from '@/lib/db/seed';
 import { getGenerationModel, getModelParameterDefaults } from '@/lib/generation/registry';
 import type { GenerationParameterValueMap, GenerationRequestPayload } from '@/lib/generation/types';
 import { getDatabaseClient, provisionNewUser } from '@/lib/db/client';
@@ -310,6 +311,7 @@ export async function getProjectByIdForProcessing(projectId: string) {
 
 export async function getSettings(userId: string) {
   const db = await getDatabaseClient();
+  await ensureDefaultSettings(userId);
   const result = await db.execute({
     sql: 'SELECT * FROM settings WHERE user_id = ? ORDER BY section_title, label',
     args: [userId],
@@ -343,6 +345,32 @@ export async function getSettings(userId: string) {
   }
 
   return Array.from(grouped.values());
+}
+
+async function ensureDefaultSettings(userId: string) {
+  const db = await getDatabaseClient();
+
+  for (const section of defaultSettingSections) {
+    for (const item of section.items) {
+      await db.execute({
+        sql: `
+          INSERT OR IGNORE INTO settings (
+            id, user_id, section_id, section_title, section_description, label, value, description
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        args: [
+          `${userId}-${item.id}`,
+          userId,
+          section.id,
+          section.title,
+          section.description,
+          item.label,
+          item.value,
+          item.description,
+        ],
+      });
+    }
+  }
 }
 
 export async function updateUserProfileDetails(input: { userId: string; fullName: string }) {

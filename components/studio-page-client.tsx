@@ -65,7 +65,19 @@ type GenerationStatusResponse = {
 const defaultModel = getDefaultGenerationModel();
 
 function formatModelName(name: string) {
-  return name.toUpperCase().replace(/[^A-Z0-9]+/g, '_');
+  return name.toUpperCase();
+}
+
+function getStudioModeLabel(model: typeof generationModels[number]) {
+  if (model.capabilities.inputKinds.includes('mask')) {
+    return 'Masked Image to 3D';
+  }
+
+  if (model.capabilities.inputKinds.includes('image')) {
+    return 'Image to 3D';
+  }
+
+  return '3D Generation';
 }
 
 function getProjectStatusLabel(status: GenerationJobStatus) {
@@ -92,8 +104,31 @@ function getModelFromSettings(settings: SettingSection[]) {
 }
 
 function applySettingDefaults(model: typeof generationModels[number], settings: SettingSection[]) {
-  void settings;
-  return getModelParameterDefaults(model);
+  const defaults = getModelParameterDefaults(model);
+  const nextDefaults: GenerationParameterValueMap = { ...defaults };
+  const settingMappings = [
+    { settingId: 'default-resolution', parameterKeys: ['settings.resolution'] },
+    { settingId: 'default-texture-size', parameterKeys: ['settings.textureSize', 'textureSize'] },
+    { settingId: 'default-decimation', parameterKeys: ['settings.decimationTarget', 'simplifyTarget'] },
+  ];
+
+  for (const mapping of settingMappings) {
+    const settingValue = getSettingValue(settings, mapping.settingId);
+
+    if (!settingValue) {
+      continue;
+    }
+
+    for (const parameterKey of mapping.parameterKeys) {
+      if (parameterKey in defaults) {
+        const numericValue = Number(settingValue);
+        nextDefaults[parameterKey] = Number.isNaN(numericValue) ? settingValue : numericValue;
+        break;
+      }
+    }
+  }
+
+  return nextDefaults;
 }
 
 function getInitialModel(project: ProjectRecord | null, settings: SettingSection[]) {
@@ -212,8 +247,10 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
   const currentProjectError = currentProject?.errorMessage
     ? getFriendlyGenerationError(currentProject.errorMessage)
     : '';
+  const studioModeLabel = getStudioModeLabel(selectedModel);
   const autoSaveLabel = currentProject?.autoSaveLabel ?? studioDefaults.emptyAutoSaveLabel;
   const promptDisabled = selectedModel.capabilities.promptSupport === 'none';
+  const showPromptField = !promptDisabled;
   const requiresLightningPreprocess = isLightningTrellisModel(selectedModel.id);
   const hasPersistedLightningSource = Boolean(!sourceFile && currentProject?.sourceImagePath && currentProject?.modelId === selectedModel.id);
   const disabledModelLabels = generationModels
@@ -335,6 +372,13 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
       : Boolean(sourceFile) || Boolean(currentProject?.sourceImagePath))
     && (!requiresMask || hasMaskForCurrentSource)
     && !(promptDisabled && prompt.trim());
+  const generateButtonLabel = isSubmitting
+    ? 'STARTING JOB'
+    : !sourcePreviewUrl
+      ? 'UPLOAD IMAGE FIRST'
+      : requiresMask && !hasMaskForCurrentSource
+        ? 'CREATE MASK FIRST'
+        : studioContent.generateLabel;
 
   const handleModelChange = (modelId: string) => {
     const model = getGenerationModel(modelId);
@@ -610,8 +654,8 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
       <div className="flex flex-1 min-w-[960px] overflow-hidden relative">
         <aside className="w-[320px] flex flex-col border-r border-border-muted bg-surface shrink-0 z-10 relative">
           <div className="p-4 border-b border-border-muted flex items-center gap-2">
-            <Type className="w-4 h-4" />
-            <h2 className="font-display font-bold text-[14px]">{studioContent.panelTitle}</h2>
+            {showPromptField ? <Type className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
+            <h2 className="font-display font-bold text-[14px]">{studioModeLabel}</h2>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-[92px]">
@@ -640,21 +684,23 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
               ) : null}
             </div>
 
-            <div className="space-y-2">
-              <label className="flex justify-between items-center">
-                <span className="text-[11px] font-mono text-text-muted uppercase tracking-wider">{studioContent.promptLabel}</span>
-                <button type="button" onClick={() => setPrompt('')} className="text-[11px] text-primary hover:underline">{studioContent.clearPromptLabel}</button>
-              </label>
-              <textarea
-                className="w-full h-28 bg-background-dark border border-border-muted rounded p-3 text-[13px] font-body text-text-main placeholder:text-text-muted focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none resize-none transition-all disabled:opacity-60"
-                placeholder={studioContent.promptPlaceholder}
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                disabled={promptDisabled}
-                readOnly={promptDisabled}
-                title={selectedModel.promptHelperText || studioContent.tooltips.prompt}
-              />
-            </div>
+            {showPromptField ? (
+              <div className="space-y-2">
+                <label className="flex justify-between items-center">
+                  <span className="text-[11px] font-mono text-text-muted uppercase tracking-wider">{studioContent.promptLabel}</span>
+                  <button type="button" onClick={() => setPrompt('')} className="text-[11px] text-primary hover:underline">{studioContent.clearPromptLabel}</button>
+                </label>
+                <textarea
+                  className="w-full h-28 bg-background-dark border border-border-muted rounded p-3 text-[13px] font-body text-text-main placeholder:text-text-muted focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none resize-none transition-all disabled:opacity-60"
+                  placeholder={studioContent.promptPlaceholder}
+                  value={prompt}
+                  onChange={(event) => setPrompt(event.target.value)}
+                  disabled={promptDisabled}
+                  readOnly={promptDisabled}
+                  title={selectedModel.promptHelperText || studioContent.tooltips.prompt}
+                />
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <label className="text-[11px] font-mono text-text-muted uppercase tracking-wider">{studioContent.referenceImageLabel}</label>
@@ -857,10 +903,10 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
               type="button"
               onClick={handleGenerate}
               disabled={!canGenerate}
-              className="w-full h-[40px] bg-primary hover:bg-primary-hover disabled:opacity-70 disabled:hover:bg-primary text-background-dark font-display font-bold text-[13px] rounded tracking-wide transition-colors flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(245,165,36,0.15)]"
+              className="w-full h-[40px] border border-primary bg-primary hover:bg-primary-hover disabled:border-border-muted disabled:bg-surface-hover disabled:text-text-muted disabled:hover:bg-surface-hover text-background-dark font-display font-bold text-[13px] rounded tracking-wide transition-colors flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(245,165,36,0.15)]"
             >
               <Play className="w-4 h-4 fill-current" />
-              {isSubmitting ? 'STARTING JOB' : studioContent.generateLabel}
+              {generateButtonLabel}
             </button>
             {errorMessage ? (
               <p className="mt-3 text-[11px] font-mono text-error">{errorMessage}</p>

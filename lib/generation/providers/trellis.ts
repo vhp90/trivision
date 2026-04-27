@@ -1,4 +1,8 @@
-import { createGenerationTaskId } from '@/lib/generation/helpers';
+import {
+  buildSettingsObject,
+  createGenerationTaskId,
+  getNumberParameter,
+} from '@/lib/generation/helpers';
 import { getFriendlyGenerationError } from '@/lib/generation/errors';
 import {
   normalizeRunware3DResult,
@@ -15,6 +19,10 @@ import type {
 } from '@/lib/generation/types';
 
 function buildRequest(context: ProviderExecutionContext, inputImageUuid: string): Runware3DRequest {
+  const seed = getNumberParameter(context.input.parameterValues, 'seed');
+  const numberResults = getNumberParameter(context.input.parameterValues, 'numberResults');
+  const settings = buildSettingsObject(context.input.parameterValues);
+
   return {
     taskType: '3dInference',
     taskUUID: createGenerationTaskId(),
@@ -22,6 +30,10 @@ function buildRequest(context: ProviderExecutionContext, inputImageUuid: string)
     inputs: {
       image: inputImageUuid,
     },
+    outputFormat: context.input.outputFormat.toUpperCase(),
+    seed: seed ?? undefined,
+    numberResults: numberResults ?? undefined,
+    settings: Object.keys(settings).length > 0 ? settings : undefined,
   };
 }
 

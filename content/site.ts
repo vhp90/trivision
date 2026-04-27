@@ -199,7 +199,7 @@ export const collectionPageContent = {
 export const studioContent = {
   statusLabel: 'Engine Ready',
   exportLabel: 'Export',
-  panelTitle: 'Text to 3D',
+  panelTitle: 'Image to 3D',
   modelLabel: 'Model',
   promptLabel: 'Prompt',
   clearPromptLabel: 'Clear',
@@ -224,8 +224,8 @@ export const studioContent = {
   segmentationHelp: 'Use point or box prompts to create a MobileSAM mask for this image.',
   generatedPreviewTitle: 'Generated Asset',
   disabledModelBadge: 'Unavailable',
-  emptyViewerLabel: 'No completed asset yet',
-  emptyViewerHelp: 'Upload an image and start a generation to populate the viewer with a provider-backed 3D result.',
+  emptyViewerLabel: 'Ready for generation',
+  emptyViewerHelp: 'Upload a reference image, tune the model parameters, and start a 3D generation.',
   loaderTitle: 'Generating Asset',
   loaderSubtitle: 'Building mesh, texture, and export package',
   tooltips: {

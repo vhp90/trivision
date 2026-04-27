@@ -24,6 +24,7 @@ function buildRequest(
   }
 
   const seed = getNumberParameter(context.input.parameterValues, 'seed');
+  const numberResults = getNumberParameter(context.input.parameterValues, 'numberResults');
   const positivePrompt = context.input.prompt.trim();
 
   return {
@@ -35,7 +36,9 @@ function buildRequest(
       mask: maskImageUuid,
     },
     positivePrompt: positivePrompt || undefined,
+    outputFormat: context.input.outputFormat.toUpperCase(),
     seed: seed ?? undefined,
+    numberResults: numberResults ?? undefined,
   };
 }
 

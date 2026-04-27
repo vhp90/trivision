@@ -22,12 +22,12 @@ describe('generation model registry', () => {
     }
   });
 
-  it('keeps Runware model requests on provider defaults unless explicit controls are added', () => {
+  it('keeps Runware model controls visible from their provider schemas', () => {
     const runwareModels = generationModels.filter((model) => model.providerId.startsWith('runware:'));
 
     for (const model of runwareModels) {
-      expect(model.parameters).toEqual([]);
-      expect(getModelParameterDefaults(model)).toEqual({});
+      expect(model.parameters.length).toBeGreaterThan(0);
+      expect(getModelParameterDefaults(model)).toHaveProperty('seed');
     }
   });
 });

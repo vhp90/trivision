@@ -105,7 +105,7 @@ async function insertSettingSections(
     for (const item of section.items) {
       await clientInstance.execute({
         sql: `
-          INSERT INTO settings (
+          INSERT OR IGNORE INTO settings (
             id, user_id, section_id, section_title, section_description, label, value, description
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `,
