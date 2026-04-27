@@ -62,6 +62,22 @@ export async function saveRemoteAsset(input: {
   assetUrl: string;
   outputFormat: string;
 }) {
+  return saveRemoteFile({
+    userId: input.userId,
+    projectId: input.projectId,
+    kind: 'outputs',
+    assetUrl: input.assetUrl,
+    fileName: `generated-asset.${input.outputFormat.replace(/^\./, '')}`,
+  });
+}
+
+export async function saveRemoteFile(input: {
+  userId: string;
+  projectId: string;
+  kind: 'inputs' | 'outputs';
+  assetUrl: string;
+  fileName: string;
+}) {
   const response = await fetchWithRetry(input.assetUrl, {
     retries: 1,
     timeoutMs: 25000,
@@ -72,13 +88,12 @@ export async function saveRemoteAsset(input: {
   }
 
   const content = Buffer.from(await response.arrayBuffer());
-  const extension = input.outputFormat.startsWith('.') ? input.outputFormat : `.${input.outputFormat}`;
 
   return saveUploadedFile({
     userId: input.userId,
     projectId: input.projectId,
-    kind: 'outputs',
-    fileName: `generated-asset${extension}`,
+    kind: input.kind,
+    fileName: input.fileName,
     content,
   });
 }

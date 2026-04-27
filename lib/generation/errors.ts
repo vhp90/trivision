@@ -6,6 +6,7 @@ const providerSetupPatterns = [
 
 const providerDownloadPatterns = [
   'without a downloadable asset URL',
+  'without a downloadable image URL',
   'could not be downloaded',
   'Unable to download generated asset',
 ];

@@ -258,6 +258,30 @@ async function initializeDatabase() {
       },
       {
         sql: `
+          CREATE TABLE IF NOT EXISTS asset_preparation_jobs (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            target_model_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            remove_background INTEGER NOT NULL DEFAULT 0,
+            prompt TEXT NOT NULL DEFAULT '',
+            source_image_path TEXT,
+            generated_image_path TEXT,
+            prepared_image_path TEXT,
+            current_stage TEXT NOT NULL,
+            flux_task_id TEXT,
+            rmbg_task_id TEXT,
+            response_payload_json TEXT,
+            error_message TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            completed_at TEXT
+          )
+        `,
+      },
+      {
+        sql: `
           CREATE TABLE IF NOT EXISTS settings (
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL,

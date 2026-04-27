@@ -21,6 +21,7 @@ import type {
   NormalizedGenerationResult,
 } from '@/lib/generation/types';
 import { RunwareApiError } from '@/lib/generation/runware-client';
+import { getPreparedImagePathForGeneration } from '@/lib/generation/preparation/service';
 import { readStoredFile, saveRemoteAsset, saveUploadedFile } from '@/lib/storage/blob';
 
 function getFileExtension(fileName: string) {
@@ -54,6 +55,7 @@ type StartGenerationInput = {
   sourceFile?: File | null;
   maskFile?: File | null;
   sourceProjectId?: string | null;
+  preparationJobId?: string | null;
 };
 
 function isTransientPollTransportError(error: unknown) {
@@ -84,7 +86,13 @@ export async function startGeneration(input: StartGenerationInput) {
   let maskImagePath: string | null = null;
   let sourceFileName = 'reference-image';
 
-  if (input.sourceFile && input.sourceFile.size > 0) {
+  if (input.preparationJobId) {
+    sourceImagePath = await getPreparedImagePathForGeneration({
+      userId: input.userId,
+      preparationJobId: input.preparationJobId,
+    });
+    sourceFileName = 'prepared-source.png';
+  } else if (input.sourceFile && input.sourceFile.size > 0) {
     const draftProjectId = `upload-${Date.now()}`;
     const fileBuffer = Buffer.from(await input.sourceFile.arrayBuffer());
     sourceFileName = input.sourceFile.name || sourceFileName;

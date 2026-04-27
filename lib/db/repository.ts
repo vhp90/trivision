@@ -19,6 +19,10 @@ import type {
   UserProfile,
   VisualKind,
   WorkspaceSummary,
+  AssetPreparationJob,
+  AssetPreparationMode,
+  AssetPreparationStage,
+  AssetPreparationStatus,
 } from '@/lib/db/types';
 
 function safeParseParameterValues(rawValue: unknown): GenerationParameterValueMap {
@@ -132,6 +136,29 @@ function mapGenerationJob(row: Record<string, unknown>): GenerationJobSummary {
     startedAt: row.started_at ? String(row.started_at) : null,
     completedAt: row.completed_at ? String(row.completed_at) : null,
     projectName: String(row.project_name),
+  };
+}
+
+function mapAssetPreparationJob(row: Record<string, unknown>): AssetPreparationJob {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    targetModelId: String(row.target_model_id),
+    status: String(row.status) as AssetPreparationStatus,
+    mode: String(row.mode) as AssetPreparationMode,
+    removeBackground: Number(row.remove_background) === 1,
+    prompt: String(row.prompt ?? ''),
+    sourceImagePath: row.source_image_path ? String(row.source_image_path) : null,
+    generatedImagePath: row.generated_image_path ? String(row.generated_image_path) : null,
+    preparedImagePath: row.prepared_image_path ? String(row.prepared_image_path) : null,
+    currentStage: String(row.current_stage) as AssetPreparationStage,
+    fluxTaskId: row.flux_task_id ? String(row.flux_task_id) : null,
+    rmbgTaskId: row.rmbg_task_id ? String(row.rmbg_task_id) : null,
+    responsePayloadJson: row.response_payload_json ? String(row.response_payload_json) : null,
+    errorMessage: row.error_message ? String(row.error_message) : null,
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+    completedAt: row.completed_at ? String(row.completed_at) : null,
   };
 }
 
@@ -696,6 +723,177 @@ export async function getGenerationJobForProcessing(jobId: string) {
   }
 
   return mapGenerationJob(result.rows[0] as Record<string, unknown>);
+}
+
+export async function createAssetPreparationJob(input: {
+  id: string;
+  userId: string;
+  targetModelId: string;
+  mode: AssetPreparationMode;
+  removeBackground: boolean;
+  prompt: string;
+  sourceImagePath?: string | null;
+  currentStage: AssetPreparationStage;
+}) {
+  const db = await getDatabaseClient();
+  const now = new Date().toISOString();
+
+  await db.execute({
+    sql: `
+      INSERT INTO asset_preparation_jobs (
+        id, user_id, target_model_id, status, mode, remove_background, prompt,
+        source_image_path, generated_image_path, prepared_image_path, current_stage,
+        flux_task_id, rmbg_task_id, response_payload_json, error_message,
+        created_at, updated_at, completed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    args: [
+      input.id,
+      input.userId,
+      input.targetModelId,
+      'queued',
+      input.mode,
+      input.removeBackground ? 1 : 0,
+      input.prompt,
+      input.sourceImagePath ?? null,
+      null,
+      null,
+      input.currentStage,
+      null,
+      null,
+      null,
+      null,
+      now,
+      now,
+      null,
+    ],
+  });
+
+  return getAssetPreparationJobForUser(input.userId, input.id);
+}
+
+export async function getAssetPreparationJobForUser(userId: string, jobId: string) {
+  const db = await getDatabaseClient();
+  const result = await db.execute({
+    sql: 'SELECT * FROM asset_preparation_jobs WHERE id = ? AND user_id = ? LIMIT 1',
+    args: [jobId, userId],
+  });
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return mapAssetPreparationJob(result.rows[0] as Record<string, unknown>);
+}
+
+export async function getAssetPreparationJobForProcessing(jobId: string) {
+  const db = await getDatabaseClient();
+  const result = await db.execute({
+    sql: 'SELECT * FROM asset_preparation_jobs WHERE id = ? LIMIT 1',
+    args: [jobId],
+  });
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return mapAssetPreparationJob(result.rows[0] as Record<string, unknown>);
+}
+
+export async function markAssetPreparationRunning(input: {
+  jobId: string;
+  currentStage: AssetPreparationStage;
+  fluxTaskId?: string | null;
+  rmbgTaskId?: string | null;
+  generatedImagePath?: string | null;
+  responsePayloadJson: string;
+}) {
+  const db = await getDatabaseClient();
+  const now = new Date().toISOString();
+
+  await db.execute({
+    sql: `
+      UPDATE asset_preparation_jobs
+      SET status = 'running',
+          current_stage = ?,
+          flux_task_id = COALESCE(?, flux_task_id),
+          rmbg_task_id = COALESCE(?, rmbg_task_id),
+          generated_image_path = COALESCE(?, generated_image_path),
+          response_payload_json = ?,
+          updated_at = ?
+      WHERE id = ?
+    `,
+    args: [
+      input.currentStage,
+      input.fluxTaskId ?? null,
+      input.rmbgTaskId ?? null,
+      input.generatedImagePath ?? null,
+      input.responsePayloadJson,
+      now,
+      input.jobId,
+    ],
+  });
+}
+
+export async function completeAssetPreparationJob(input: {
+  jobId: string;
+  preparedImagePath: string;
+  generatedImagePath?: string | null;
+  responsePayloadJson: string;
+}) {
+  const db = await getDatabaseClient();
+  const now = new Date().toISOString();
+
+  await db.execute({
+    sql: `
+      UPDATE asset_preparation_jobs
+      SET status = 'succeeded',
+          current_stage = 'complete',
+          prepared_image_path = ?,
+          generated_image_path = COALESCE(?, generated_image_path),
+          response_payload_json = ?,
+          error_message = NULL,
+          completed_at = ?,
+          updated_at = ?
+      WHERE id = ?
+    `,
+    args: [
+      input.preparedImagePath,
+      input.generatedImagePath ?? null,
+      input.responsePayloadJson,
+      now,
+      now,
+      input.jobId,
+    ],
+  });
+}
+
+export async function failAssetPreparationJob(input: {
+  jobId: string;
+  errorMessage: string;
+  responsePayloadJson?: string | null;
+}) {
+  const db = await getDatabaseClient();
+  const now = new Date().toISOString();
+
+  await db.execute({
+    sql: `
+      UPDATE asset_preparation_jobs
+      SET status = 'failed',
+          error_message = ?,
+          response_payload_json = ?,
+          completed_at = ?,
+          updated_at = ?
+      WHERE id = ?
+    `,
+    args: [
+      input.errorMessage,
+      input.responsePayloadJson ?? null,
+      now,
+      now,
+      input.jobId,
+    ],
+  });
 }
 
 export async function markGenerationJobRunning(jobId: string) {

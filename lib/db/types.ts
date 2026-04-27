@@ -102,3 +102,28 @@ export type LoginPayload = {
 export type GenerationJobSummary = GenerationJobRecord & {
   projectName: string;
 };
+
+export type AssetPreparationStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+export type AssetPreparationMode = 'upload' | 'text';
+export type AssetPreparationStage = 'text_to_image' | 'remove_background' | 'complete';
+
+export type AssetPreparationJob = {
+  id: string;
+  userId: string;
+  targetModelId: string;
+  status: AssetPreparationStatus;
+  mode: AssetPreparationMode;
+  removeBackground: boolean;
+  prompt: string;
+  sourceImagePath: string | null;
+  generatedImagePath: string | null;
+  preparedImagePath: string | null;
+  currentStage: AssetPreparationStage;
+  fluxTaskId: string | null;
+  rmbgTaskId: string | null;
+  responsePayloadJson: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+};

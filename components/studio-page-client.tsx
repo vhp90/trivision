@@ -62,6 +62,22 @@ type GenerationStatusResponse = {
   };
 };
 
+type AssetPreparationStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+
+type PreparationStatusResponse = {
+  job: {
+    id: string;
+    status: AssetPreparationStatus;
+    currentStage: 'text_to_image' | 'remove_background' | 'complete';
+    errorMessage: string | null;
+  };
+  assets: {
+    sourceImageUrl: string | null;
+    generatedImageUrl: string | null;
+    preparedImageUrl: string | null;
+  };
+};
+
 const defaultModel = getDefaultGenerationModel();
 
 function formatModelName(name: string) {
@@ -220,6 +236,11 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [processedSourceFile, setProcessedSourceFile] = useState<File | null>(null);
   const [processedSourcePreviewUrl, setProcessedSourcePreviewUrl] = useState<string | null>(null);
+  const [textToImageEnabled, setTextToImageEnabled] = useState(false);
+  const [removeBackgroundEnabled, setRemoveBackgroundEnabled] = useState(false);
+  const [preparationJobId, setPreparationJobId] = useState<string | null>(null);
+  const [preparationStatus, setPreparationStatus] = useState<AssetPreparationStatus>('succeeded');
+  const [preparedSourcePreviewUrl, setPreparedSourcePreviewUrl] = useState<string | null>(null);
   const [maskFile, setMaskFile] = useState<File | null>(null);
   const [maskPreviewUrl, setMaskPreviewUrl] = useState<string | null>(null);
   const [maskOverlayUrl, setMaskOverlayUrl] = useState<string | null>(null);
@@ -250,7 +271,7 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
   const studioModeLabel = getStudioModeLabel(selectedModel);
   const autoSaveLabel = currentProject?.autoSaveLabel ?? studioDefaults.emptyAutoSaveLabel;
   const promptDisabled = selectedModel.capabilities.promptSupport === 'none';
-  const showPromptField = !promptDisabled;
+  const showPromptField = textToImageEnabled || !promptDisabled;
   const requiresLightningPreprocess = isLightningTrellisModel(selectedModel.id);
   const hasPersistedLightningSource = Boolean(!sourceFile && currentProject?.sourceImagePath && currentProject?.modelId === selectedModel.id);
   const disabledModelLabels = generationModels
@@ -264,13 +285,15 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
     () => (sourceFile ? URL.createObjectURL(sourceFile) : null),
     [sourceFile],
   );
-  const sourcePreviewUrl = uploadedSourcePreviewUrl ?? persistedSourcePreviewUrl;
+  const sourcePreviewUrl = preparedSourcePreviewUrl ?? uploadedSourcePreviewUrl ?? persistedSourcePreviewUrl;
   const activeProcessedPreviewUrl = processedSourcePreviewUrl ?? persistedProcessedPreviewUrl;
   const activeMaskPreviewUrl = maskPreviewUrl ?? (maskCleared ? null : persistedMaskPreviewUrl);
-  const isJobActive = isSubmitting || currentProject?.status === 'queued' || currentProject?.status === 'running';
+  const isPreparationActive = preparationStatus === 'queued' || preparationStatus === 'running';
+  const isJobActive = isSubmitting || isPreparationActive || currentProject?.status === 'queued' || currentProject?.status === 'running';
   const isCurrentProjectActive = currentProject?.status === 'queued' || currentProject?.status === 'running';
   const requiresMask = selectedModel.capabilities.inputKinds.includes('mask');
-  const hasMaskForCurrentSource = Boolean(maskFile) || Boolean(!sourceFile && !maskCleared && currentProject?.maskImagePath);
+  const hasMaskForCurrentSource = Boolean(maskFile)
+    || Boolean(!sourceFile && !preparedSourcePreviewUrl && !maskCleared && currentProject?.maskImagePath);
   const exportFileFormat = (currentProject?.outputFormat ?? selectedModel.defaultOutputFormat).toUpperCase();
   const downloadFileName = `${(currentProject?.name ?? selectedModel.shortLabel).replace(/[^a-zA-Z0-9._-]+/g, '-').toLowerCase()}.${exportFileFormat.toLowerCase()}`;
   const downloadHref = outputAssetUrl
@@ -360,25 +383,80 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
     };
   }, [currentProject?.generationJobId, currentProject?.status, router]);
 
+  useEffect(() => {
+    if (!preparationJobId || (preparationStatus !== 'queued' && preparationStatus !== 'running')) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(async () => {
+      try {
+        const response = await fetch(`/api/preparations/${preparationJobId}`, { cache: 'no-store' });
+
+        if (!response.ok) {
+          setErrorMessage('Unable to refresh source preparation. Retrying...');
+          return;
+        }
+
+        const payload = await response.json() as PreparationStatusResponse;
+        setPreparationStatus(payload.job.status);
+
+        if (payload.assets.preparedImageUrl) {
+          setPreparedSourcePreviewUrl(payload.assets.preparedImageUrl);
+          setMaskFile(null);
+          setMaskPreviewUrl(null);
+          setMaskOverlayUrl(null);
+          setMaskCleared(true);
+        }
+
+        if (payload.job.status === 'failed') {
+          setErrorMessage(payload.job.errorMessage ?? 'Source preparation failed.');
+        }
+      } catch {
+        setErrorMessage('Network error while refreshing source preparation. Retrying...');
+      }
+    }, generationRuntimeDefaults.pollIntervalMs);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [preparationJobId, preparationStatus]);
+
+  const preparationEnabled = textToImageEnabled || removeBackgroundEnabled;
+  const hasPreparedSource = Boolean(preparationJobId && preparedSourcePreviewUrl && preparationStatus === 'succeeded');
+  const hasRawSource = Boolean(sourceFile) || Boolean(currentProject?.sourceImagePath);
+  const canPrepareSource = selectedModel.availability === 'enabled'
+    && !isSubmitting
+    && !isPreprocessing
+    && !isPreparationActive
+    && preparationEnabled
+    && (!textToImageEnabled || Boolean(prompt.trim()))
+    && (textToImageEnabled || hasRawSource);
   const canGenerate = selectedModel.availability === 'enabled'
     && !isSubmitting
     && !isPreprocessing
+    && !isPreparationActive
     && !(
       currentProject?.status === 'queued'
       || currentProject?.status === 'running'
     )
-    && (requiresLightningPreprocess
-      ? Boolean(processedSourceFile) || hasPersistedLightningSource
-      : Boolean(sourceFile) || Boolean(currentProject?.sourceImagePath))
+    && (preparationEnabled
+      ? hasPreparedSource
+      : requiresLightningPreprocess
+        ? Boolean(processedSourceFile) || hasPersistedLightningSource
+        : hasRawSource)
     && (!requiresMask || hasMaskForCurrentSource)
-    && !(promptDisabled && prompt.trim());
+    && !(promptDisabled && !textToImageEnabled && prompt.trim());
   const generateButtonLabel = isSubmitting
     ? 'STARTING JOB'
-    : !sourcePreviewUrl
-      ? 'UPLOAD IMAGE FIRST'
-      : requiresMask && !hasMaskForCurrentSource
-        ? 'CREATE MASK FIRST'
-        : studioContent.generateLabel;
+    : isPreparationActive
+      ? 'PREPARING SOURCE'
+      : preparationEnabled && !hasPreparedSource
+        ? 'PREPARE SOURCE FIRST'
+        : !sourcePreviewUrl
+          ? 'UPLOAD IMAGE FIRST'
+          : requiresMask && !hasMaskForCurrentSource
+            ? 'CREATE MASK FIRST'
+            : studioContent.generateLabel;
 
   const handleModelChange = (modelId: string) => {
     const model = getGenerationModel(modelId);
@@ -392,10 +470,52 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
     setErrorMessage('');
     setProcessedSourceFile(null);
     setProcessedSourcePreviewUrl(null);
+    setPreparationJobId(null);
+    setPreparedSourcePreviewUrl(null);
+    setPreparationStatus('succeeded');
+    setMaskFile(null);
+    setMaskPreviewUrl(null);
+    setMaskOverlayUrl(null);
+    setMaskCleared(true);
 
-    if (model.capabilities.promptSupport === 'none') {
+    if (model.capabilities.promptSupport === 'none' && !textToImageEnabled) {
       setPrompt('');
     }
+  };
+
+  const resetPreparedSource = () => {
+    setPreparationJobId(null);
+    setPreparedSourcePreviewUrl(null);
+    setPreparationStatus('succeeded');
+  };
+
+  const clearMaskState = () => {
+    setMaskFile(null);
+    setMaskPreviewUrl(null);
+    setMaskOverlayUrl(null);
+    setMaskCleared(true);
+  };
+
+  const handleTextToImageToggle = () => {
+    setTextToImageEnabled((currentValue) => {
+      const nextValue = !currentValue;
+      resetPreparedSource();
+      clearMaskState();
+
+      if (!nextValue && selectedModel.capabilities.promptSupport === 'none') {
+        setPrompt('');
+      }
+
+      return nextValue;
+    });
+  };
+
+  const handleRemoveBackgroundToggle = () => {
+    setRemoveBackgroundEnabled((currentValue) => {
+      resetPreparedSource();
+      clearMaskState();
+      return !currentValue;
+    });
   };
 
   const handleParameterChange = (key: string, value: string | number | boolean) => {
@@ -448,6 +568,63 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
     }
   };
 
+  const handlePrepareSource = async () => {
+    if (!canPrepareSource) {
+      setErrorMessage(textToImageEnabled
+        ? 'Enter a prompt before preparing a generated source image.'
+        : 'Upload an image before removing the background.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('targetModelId', selectedModel.id);
+    formData.append('prompt', prompt);
+    formData.append('textToImage', String(textToImageEnabled));
+    formData.append('removeBackground', String(removeBackgroundEnabled));
+
+    if (!textToImageEnabled && sourceFile) {
+      formData.append('sourceImage', sourceFile);
+    } else if (!textToImageEnabled && currentProject?.id) {
+      formData.append('sourceProjectId', currentProject.id);
+    }
+
+    setIsPreprocessing(true);
+    setPreparationStatus('queued');
+    setErrorMessage('');
+
+    try {
+      const response = await fetch('/api/preparations', {
+        method: 'POST',
+        body: formData,
+      });
+      const payload = await response.json().catch(() => null) as PreparationStatusResponse | { message?: string } | null;
+
+      if (!response.ok || !payload || !('job' in payload)) {
+        setPreparationStatus('failed');
+        setErrorMessage(payload && 'message' in payload && payload.message
+          ? payload.message
+          : 'Unable to prepare the source image.');
+        return;
+      }
+
+      setPreparationJobId(payload.job.id);
+      setPreparationStatus(payload.job.status);
+
+      if (payload.assets.preparedImageUrl) {
+        setPreparedSourcePreviewUrl(payload.assets.preparedImageUrl);
+        setMaskFile(null);
+        setMaskPreviewUrl(null);
+        setMaskOverlayUrl(null);
+        setMaskCleared(true);
+      }
+    } catch {
+      setPreparationStatus('failed');
+      setErrorMessage('Network error while preparing the source image.');
+    } finally {
+      setIsPreprocessing(false);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!canGenerate) {
       setErrorMessage(requiresMask
@@ -463,7 +640,9 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
     formData.append('outputFormat', selectedModel.defaultOutputFormat);
     formData.append('parameters', JSON.stringify(parameterValues));
 
-    if (effectiveSourceFile) {
+    if (preparationJobId && hasPreparedSource) {
+      formData.append('preparationJobId', preparationJobId);
+    } else if (effectiveSourceFile) {
       formData.append('sourceImage', effectiveSourceFile);
     } else if (currentProject?.id && (!requiresLightningPreprocess || hasPersistedLightningSource)) {
       formData.append('sourceProjectId', currentProject.id);
@@ -684,6 +863,49 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
               ) : null}
             </div>
 
+            <div className="space-y-3 border border-border-muted bg-background-dark p-4">
+              <div>
+                <div className="text-[11px] font-mono text-text-muted uppercase tracking-wider">Source Preparation</div>
+                <div className="mt-1 text-[12px] text-text-muted">Generate or clean a source image before sending it to the 3D model.</div>
+              </div>
+              <button
+                type="button"
+                onClick={handleTextToImageToggle}
+                className="flex w-full items-center justify-between border border-border-muted bg-surface px-3 py-2 text-left hover:border-primary transition-colors"
+              >
+                <div>
+                  <div className="text-[12px] text-text-main">Text to 3D source</div>
+                  <div className="text-[11px] text-text-muted">Use FLUX.2 klein at 1024 to create the input image.</div>
+                </div>
+                <div className={`w-10 h-5 rounded-full relative transition-colors ${textToImageEnabled ? 'bg-primary' : 'bg-surface-hover'}`}>
+                  <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-surface transition-all ${textToImageEnabled ? 'right-0.5' : 'left-0.5'}`}></div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={handleRemoveBackgroundToggle}
+                className="flex w-full items-center justify-between border border-border-muted bg-surface px-3 py-2 text-left hover:border-primary transition-colors"
+              >
+                <div>
+                  <div className="text-[12px] text-text-main">Remove background</div>
+                  <div className="text-[11px] text-text-muted">Run Bria RMBG 2.0 and use the transparent PNG.</div>
+                </div>
+                <div className={`w-10 h-5 rounded-full relative transition-colors ${removeBackgroundEnabled ? 'bg-primary' : 'bg-surface-hover'}`}>
+                  <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-surface transition-all ${removeBackgroundEnabled ? 'right-0.5' : 'left-0.5'}`}></div>
+                </div>
+              </button>
+              {preparationEnabled ? (
+                <button
+                  type="button"
+                  onClick={handlePrepareSource}
+                  disabled={!canPrepareSource}
+                  className="w-full h-10 border border-primary text-primary font-display text-[12px] font-bold hover:bg-primary/10 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
+                >
+                  {isPreparationActive ? 'PREPARING SOURCE' : hasPreparedSource ? 'SOURCE READY' : 'PREPARE SOURCE'}
+                </button>
+              ) : null}
+            </div>
+
             {showPromptField ? (
               <div className="space-y-2">
                 <label className="flex justify-between items-center">
@@ -750,10 +972,8 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
                     setSourceFile(file);
                     setProcessedSourceFile(null);
                     setProcessedSourcePreviewUrl(null);
-                    setMaskFile(null);
-                    setMaskPreviewUrl(null);
-                    setMaskOverlayUrl(null);
-                    setMaskCleared(Boolean(file));
+                    resetPreparedSource();
+                    clearMaskState();
                     if (file) {
                       setErrorMessage('');
                     }

@@ -19,6 +19,7 @@ export async function POST(request: Request) {
   const prompt = String(formData.get('prompt') ?? '').trim();
   const outputFormat = String(formData.get('outputFormat') ?? 'glb').trim();
   const sourceProjectId = String(formData.get('sourceProjectId') ?? '').trim() || null;
+  const preparationJobId = String(formData.get('preparationJobId') ?? '').trim() || null;
   const rawParameters = String(formData.get('parameters') ?? '{}');
   const sourceFileValue = formData.get('sourceImage');
   const maskFileValue = formData.get('maskImage');
@@ -50,6 +51,7 @@ export async function POST(request: Request) {
       sourceFile,
       maskFile,
       sourceProjectId,
+      preparationJobId,
     });
 
     return NextResponse.json(result, { status: 202 });
