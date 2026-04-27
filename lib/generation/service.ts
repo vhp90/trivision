@@ -12,9 +12,15 @@ import {
   getProjectByIdForProcessing,
   getSourceImagePathFromProject,
   incrementGenerationJobAttempt,
+  markGenerationJobProviderPending,
   markGenerationJobRunning,
 } from '@/lib/db/repository';
-import type { GenerationInputAsset, GenerationParameterValueMap } from '@/lib/generation/types';
+import type {
+  GenerationInputAsset,
+  GenerationParameterValueMap,
+  NormalizedGenerationResult,
+} from '@/lib/generation/types';
+import { RunwareApiError } from '@/lib/generation/runware-client';
 import { readStoredFile, saveRemoteAsset, saveUploadedFile } from '@/lib/storage/blob';
 
 function getFileExtension(fileName: string) {
@@ -49,6 +55,23 @@ type StartGenerationInput = {
   maskFile?: File | null;
   sourceProjectId?: string | null;
 };
+
+function isTransientPollTransportError(error: unknown) {
+  if (error instanceof RunwareApiError) {
+    return Boolean(
+      error.status
+      && [408, 429, 500, 502, 503, 504].includes(error.status)
+      && !error.taskUUID,
+    );
+  }
+
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return error.name === 'AbortError'
+    || /fetch failed|network|timed out|Unable to download generated asset/i.test(error.message);
+}
 
 export async function startGeneration(input: StartGenerationInput) {
   const model = getGenerationModel(input.modelId);
@@ -134,7 +157,7 @@ export async function startGeneration(input: StartGenerationInput) {
   return {
     jobId: draft.jobId,
     projectId: draft.projectId,
-    status: 'queued' as const,
+    status: 'running' as const,
   };
 }
 
@@ -172,8 +195,10 @@ export async function processGenerationJob(jobId: string) {
   try {
     await markGenerationJobRunning(jobId);
 
-    const sourceImage = await loadGenerationAsset(project.sourceImagePath, 'image/png');
-    const maskImage = project.maskImagePath
+    const sourceImage = adapter.inputDelivery === 'buffer'
+      ? await loadGenerationAsset(project.sourceImagePath, 'image/png')
+      : null;
+    const maskImage = adapter.inputDelivery === 'buffer' && project.maskImagePath
       ? await loadGenerationAsset(project.maskImagePath, 'image/png')
       : null;
 
@@ -195,23 +220,28 @@ export async function processGenerationJob(jobId: string) {
     await incrementGenerationJobAttempt(jobId);
     const providerResult = await adapter.startGeneration(executionContext);
 
-    if (providerResult.status !== 'completed' || !providerResult.result) {
+    if (providerResult.status === 'running') {
+      if (!providerResult.providerTaskId) {
+        throw new Error('The provider did not return a task id for async generation.');
+      }
+
+      await markGenerationJobProviderPending({
+        jobId,
+        providerTaskId: providerResult.providerTaskId,
+        responsePayloadJson: JSON.stringify(providerResult.rawResponse),
+      });
+      return;
+    }
+
+    if (!providerResult.result) {
       throw new Error('The provider did not return a completed 3D asset.');
     }
 
-    const outputAssetPath = await saveRemoteAsset({
+    await saveCompletedGenerationResult({
+      jobId,
       userId: project.userId,
       projectId: project.id,
-      assetUrl: providerResult.result.assetUrl,
-      outputFormat: providerResult.result.outputFormat || generationRuntimeDefaults.outputFormat,
-    });
-
-    await completeGenerationJob({
-      jobId,
-      providerTaskId: providerResult.result.providerTaskId,
-      responsePayloadJson: JSON.stringify(providerResult.result.responsePayload),
-      outputAssetPath,
-      outputFormat: providerResult.result.outputFormat || generationRuntimeDefaults.outputFormat,
+      result: providerResult.result,
     });
   } catch (error) {
     console.error('[generation] Job failed', {
@@ -225,6 +255,131 @@ export async function processGenerationJob(jobId: string) {
       errorMessage: adapter.mapError(error),
     });
   }
+}
+
+export async function pollGenerationJob(jobId: string) {
+  const job = await getGenerationJobForProcessing(jobId);
+
+  if (!job || job.status === 'succeeded' || job.status === 'failed') {
+    return;
+  }
+
+  if (!job.providerTaskId) {
+    await processGenerationJob(jobId);
+    return;
+  }
+
+  const project = await getProjectByIdForProcessing(job.projectId);
+
+  if (!project || !project.modelId || !project.providerId || !project.sourceImagePath || !project.outputFormat) {
+    await failGenerationJob({
+      jobId,
+      providerTaskId: job.providerTaskId,
+      errorMessage: 'Generation job is missing required project metadata.',
+    });
+    return;
+  }
+
+  const model = getGenerationModel(project.modelId);
+
+  if (!model) {
+    await failGenerationJob({
+      jobId,
+      providerTaskId: job.providerTaskId,
+      errorMessage: 'Generation job references an unknown model.',
+    });
+    return;
+  }
+
+  const adapter = getProviderAdapter(model.id);
+
+  if (!adapter.pollGeneration) {
+    await failGenerationJob({
+      jobId,
+      providerTaskId: job.providerTaskId,
+      errorMessage: 'This provider does not support async generation polling.',
+    });
+    return;
+  }
+
+  try {
+    const providerResult = await adapter.pollGeneration({
+      model,
+      input: {
+        prompt: project.prompt,
+        outputFormat: project.outputFormat,
+        parameterValues: project.parameterValues,
+        sourceImagePath: project.sourceImagePath,
+        maskImagePath: project.maskImagePath,
+      },
+      providerTaskId: job.providerTaskId,
+    });
+
+    if (providerResult.status === 'running') {
+      await markGenerationJobProviderPending({
+        jobId,
+        providerTaskId: job.providerTaskId,
+        responsePayloadJson: JSON.stringify(providerResult.rawResponse),
+      });
+      return;
+    }
+
+    if (!providerResult.result) {
+      throw new Error('The provider did not return a completed 3D asset.');
+    }
+
+    await saveCompletedGenerationResult({
+      jobId,
+      userId: project.userId,
+      projectId: project.id,
+      result: providerResult.result,
+    });
+  } catch (error) {
+    if (isTransientPollTransportError(error)) {
+      console.warn('[generation] Polling transport failed; keeping job running', {
+        jobId,
+        projectId: project.id,
+        modelId: project.modelId,
+        error,
+      });
+      return;
+    }
+
+    console.error('[generation] Polling failed', {
+      jobId,
+      projectId: project.id,
+      modelId: project.modelId,
+      error,
+    });
+    await failGenerationJob({
+      jobId,
+      providerTaskId: job.providerTaskId,
+      errorMessage: adapter.mapError(error),
+    });
+  }
+}
+
+async function saveCompletedGenerationResult(input: {
+  jobId: string;
+  userId: string;
+  projectId: string;
+  result: NormalizedGenerationResult;
+}) {
+  const outputFormat = input.result.outputFormat || generationRuntimeDefaults.outputFormat;
+  const outputAssetPath = await saveRemoteAsset({
+    userId: input.userId,
+    projectId: input.projectId,
+    assetUrl: input.result.assetUrl,
+    outputFormat,
+  });
+
+  await completeGenerationJob({
+    jobId: input.jobId,
+    providerTaskId: input.result.providerTaskId,
+    responsePayloadJson: JSON.stringify(input.result.responsePayload),
+    outputAssetPath,
+    outputFormat,
+  });
 }
 
 async function loadGenerationAsset(relativePath: string, fallbackMimeType: string): Promise<GenerationInputAsset> {

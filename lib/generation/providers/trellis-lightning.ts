@@ -65,6 +65,10 @@ function buildLightningParameters(context: ProviderExecutionContext) {
 }
 
 async function startGeneration(context: ProviderExecutionContext): Promise<ProviderStartResult> {
+  if (!context.sourceImage) {
+    throw new Error('Lightning TRELLIS requires a source image file.');
+  }
+
   const client = new LightningTrellisClient();
   const rawResponse = await client.generate({
     fileName: context.sourceImage.fileName,
@@ -89,6 +93,7 @@ async function startGeneration(context: ProviderExecutionContext): Promise<Provi
 
 export const lightningTrellisAdapter: ProviderAdapter = {
   modelId: 'lightning:microsoft-trellis-2@4b',
+  inputDelivery: 'buffer',
   validateInput(context) {
     if (context.input.prompt.trim()) {
       throw new Error(context.model.promptHelperText);

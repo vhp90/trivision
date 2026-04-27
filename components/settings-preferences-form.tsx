@@ -20,10 +20,6 @@ const sectionCopyOverrides: Record<string, { title: string; description: string 
     title: 'Workspace Preferences',
     description: 'Default values applied when you start a new generation session.',
   },
-  generation: {
-    title: 'Generation Defaults',
-    description: 'Baseline model settings used to keep new assets consistent.',
-  },
   collaboration: {
     title: 'Runtime Policies',
     description: 'Workspace defaults for predictable generation and export behavior.',
@@ -34,20 +30,13 @@ const sectionCopyOverrides: Record<string, { title: string; description: string 
   },
 };
 
-const itemDescriptionOverrides: Record<string, string> = {
-  'default-resolution': 'Baseline voxel resolution for new generations.',
-  'default-texture-size': 'Baseline texture size for image-to-3D jobs.',
-  'default-decimation': 'Baseline mesh simplification target for output assets.',
-};
+const itemDescriptionOverrides: Record<string, string> = {};
 
 const selectOptions: Record<string, string[]> = {
   'default-model': generationModels
     .filter((model) => model.availability === 'enabled')
     .map((model) => model.shortLabel),
   'default-output-format': ['GLB'],
-  'default-resolution': ['512', '1024', '1536'],
-  'default-texture-size': ['1024', '2048', '3072', '4096'],
-  'default-decimation': ['100000', '250000', '500000', '750000', '1000000'],
 };
 
 export function SettingsPreferencesForm({ sections }: SettingsPreferencesFormProps) {

@@ -63,8 +63,8 @@ export async function saveRemoteAsset(input: {
   outputFormat: string;
 }) {
   const response = await fetchWithRetry(input.assetUrl, {
-    retries: 2,
-    timeoutMs: 45000,
+    retries: 1,
+    timeoutMs: 25000,
   });
 
   if (!response.ok) {

@@ -87,6 +87,7 @@ export type Runware3DRequest = {
   outputFormat?: string;
   seed?: number;
   settings?: Record<string, unknown>;
+  deliveryMethod?: 'async' | 'sync';
 };
 
 export type NormalizedGenerationResult = {
@@ -112,19 +113,22 @@ export type ProviderPollResult = {
 export type ProviderExecutionContext = {
   model: GenerationModelDefinition;
   input: GenerationExecutionInput;
-  sourceImage: GenerationInputAsset;
+  sourceImage?: GenerationInputAsset | null;
   maskImage?: GenerationInputAsset | null;
+};
+
+export type ProviderPollContext = {
+  model: GenerationModelDefinition;
+  input: GenerationExecutionInput;
+  providerTaskId: string;
 };
 
 export type ProviderAdapter = {
   modelId: string;
+  inputDelivery: 'buffer' | 'url';
   validateInput: (context: ProviderExecutionContext) => void;
   startGeneration: (context: ProviderExecutionContext) => Promise<ProviderStartResult>;
-  pollGeneration?: (
-    context: ProviderExecutionContext & {
-      providerTaskId: string;
-    },
-  ) => Promise<ProviderPollResult>;
+  pollGeneration?: (context: ProviderPollContext) => Promise<ProviderPollResult>;
   normalizeResult: (rawResponse: unknown, taskUUID: string) => NormalizedGenerationResult;
   mapError: (error: unknown) => string;
 };

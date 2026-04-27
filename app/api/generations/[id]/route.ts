@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth/session';
 import { getGenerationJobForUser, getProjectById } from '@/lib/db/repository';
+import { pollGenerationJob } from '@/lib/generation/service';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 type GenerationStatusRouteProps = {
   params: Promise<{
@@ -22,14 +26,19 @@ export async function GET(_: Request, { params }: GenerationStatusRouteProps) {
     return NextResponse.json({ message: 'Generation job not found.' }, { status: 404 });
   }
 
-  const project = await getProjectById(user.id, job.projectId);
+  if (job.status === 'queued' || job.status === 'running') {
+    await pollGenerationJob(job.id);
+  }
+
+  const refreshedJob = await getGenerationJobForUser(user.id, routeParams.id);
+  const project = refreshedJob ? await getProjectById(user.id, refreshedJob.projectId) : null;
 
   if (!project) {
     return NextResponse.json({ message: 'Project not found.' }, { status: 404 });
   }
 
   return NextResponse.json({
-    job,
+    job: refreshedJob ?? job,
     project,
     assets: {
       sourceImageUrl: project.sourceImagePath ? `/api/projects/${project.id}/asset?kind=source` : null,

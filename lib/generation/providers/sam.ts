@@ -1,57 +1,18 @@
 import { createGenerationTaskId, getNumberParameter } from '@/lib/generation/helpers';
 import { getFriendlyGenerationError } from '@/lib/generation/errors';
-import { findTaskResult, RunwareClient } from '@/lib/generation/runware-client';
+import {
+  normalizeRunware3DResult,
+  pollRunware3DRequest,
+  submitRunware3DRequest,
+} from '@/lib/generation/providers/runware-3d';
 import type {
-  NormalizedGenerationResult,
   ProviderAdapter,
   ProviderExecutionContext,
+  ProviderPollResult,
+  ProviderPollContext,
   ProviderStartResult,
   Runware3DRequest,
 } from '@/lib/generation/types';
-
-const RUNWARE_BLANK_PROMPT = '__BLANK__';
-
-function normalizeRunware3DResult(rawResponse: unknown, taskUUID: string): NormalizedGenerationResult {
-  const taskResult = findTaskResult(rawResponse, taskUUID);
-
-  if (!taskResult) {
-    throw new Error('Runware did not return a SAM 3D task result.');
-  }
-
-  const nestedOutputs = taskResult.outputs;
-  const nestedFiles = nestedOutputs && typeof nestedOutputs === 'object' && !Array.isArray(nestedOutputs)
-    ? (nestedOutputs as Record<string, unknown>).files
-    : null;
-  const nestedUrl = Array.isArray(nestedFiles)
-    ? ((nestedFiles.find((file) => file && typeof file === 'object') as Record<string, unknown> | undefined)?.url ?? null)
-    : null;
-  const assetUrl = nestedUrl
-    ?? taskResult.assetURL
-    ?? taskResult.assetUrl
-    ?? taskResult.fileURL
-    ?? taskResult.fileUrl
-    ?? taskResult.outputURL
-    ?? taskResult.outputUrl
-    ?? taskResult.modelURL
-    ?? taskResult.modelUrl
-    ?? taskResult.glbURL
-    ?? taskResult.glbUrl
-    ?? taskResult.url;
-
-  if (typeof assetUrl !== 'string') {
-    throw new Error('Runware returned a SAM 3D response without a downloadable asset URL.');
-  }
-
-  const outputFormat = taskResult.outputFormat ?? taskResult.format ?? 'glb';
-  const providerTaskId = taskResult.taskUUID ?? taskResult.taskId ?? taskUUID;
-
-  return {
-    providerTaskId: typeof providerTaskId === 'string' ? providerTaskId : taskUUID,
-    assetUrl,
-    outputFormat: typeof outputFormat === 'string' ? outputFormat : 'glb',
-    responsePayload: rawResponse,
-  };
-}
 
 function buildRequest(
   context: ProviderExecutionContext,
@@ -63,7 +24,7 @@ function buildRequest(
   }
 
   const seed = getNumberParameter(context.input.parameterValues, 'seed');
-  const positivePrompt = context.input.prompt.trim() || RUNWARE_BLANK_PROMPT;
+  const positivePrompt = context.input.prompt.trim();
 
   return {
     taskType: '3dInference',
@@ -73,8 +34,7 @@ function buildRequest(
       image: inputImageUuid,
       mask: maskImageUuid,
     },
-    positivePrompt,
-    outputFormat: context.input.outputFormat,
+    positivePrompt: positivePrompt || undefined,
     seed: seed ?? undefined,
   };
 }
@@ -82,31 +42,27 @@ function buildRequest(
 async function startGeneration(
   context: ProviderExecutionContext,
 ): Promise<ProviderStartResult> {
-  const client = new RunwareClient();
-  const inputImageUuid = await client.uploadImage(context.sourceImage.buffer, context.sourceImage.mimeType);
-  const maskImageUuid = context.maskImage
-    ? await client.uploadImage(context.maskImage.buffer, context.maskImage.mimeType)
-    : null;
-  const request = buildRequest(context, inputImageUuid, maskImageUuid);
-  const rawResponse = await client.request([request]);
-  const result = normalizeRunware3DResult(rawResponse, request.taskUUID);
+  const request = buildRequest(context, context.input.sourceImagePath, context.input.maskImagePath);
 
-  return {
-    status: 'completed',
-    providerTaskId: result.providerTaskId,
-    rawResponse,
-    result,
-  };
+  return submitRunware3DRequest(request);
+}
+
+async function pollGeneration(
+  context: ProviderPollContext,
+): Promise<ProviderPollResult> {
+  return pollRunware3DRequest(context.providerTaskId);
 }
 
 export const samAdapter: ProviderAdapter = {
   modelId: 'meta:sam@3d',
+  inputDelivery: 'url',
   validateInput(context) {
-    if (!context.input.maskImagePath || !context.maskImage) {
+    if (!context.input.maskImagePath) {
       throw new Error('SAM 3D requires a mask input.');
     }
   },
   startGeneration,
+  pollGeneration,
   normalizeResult: normalizeRunware3DResult,
   mapError(error) {
     return getFriendlyGenerationError(error);

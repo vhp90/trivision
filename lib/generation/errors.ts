@@ -15,12 +15,14 @@ const providerTimeoutPatterns = [
   'timed out',
   'timeout',
   'fetch failed',
+  'timeoutProvider',
 ];
 
 const providerInputPatterns = [
   'positivePrompt',
   'required parameter',
   'invalid parameter',
+  'unsupported parameter',
 ];
 
 function getErrorMessage(error: unknown) {
@@ -44,6 +46,14 @@ export function getFriendlyGenerationError(error: unknown) {
 
   if (/unauthorized|forbidden|invalid api key/i.test(message)) {
     return 'The provider rejected the request. Check the configured API key and try again.';
+  }
+
+  if (/insufficient|payment required|balance|credits/i.test(message)) {
+    return 'The provider account does not have enough credits for this generation.';
+  }
+
+  if (/rate limit|too many requests|providerRateLimitExceeded|capacity/i.test(message)) {
+    return 'The provider is busy right now. Wait a moment, then retry the generation.';
   }
 
   if (providerInputPatterns.some((pattern) => message.toLowerCase().includes(pattern.toLowerCase()))) {

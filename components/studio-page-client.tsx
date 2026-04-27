@@ -92,31 +92,8 @@ function getModelFromSettings(settings: SettingSection[]) {
 }
 
 function applySettingDefaults(model: typeof generationModels[number], settings: SettingSection[]) {
-  const defaults = getModelParameterDefaults(model);
-  const nextDefaults: GenerationParameterValueMap = { ...defaults };
-  const settingMappings = [
-    { settingId: 'default-resolution', parameterKeys: ['settings.resolution'] },
-    { settingId: 'default-texture-size', parameterKeys: ['settings.textureSize', 'textureSize'] },
-    { settingId: 'default-decimation', parameterKeys: ['settings.decimationTarget', 'simplifyTarget'] },
-  ];
-
-  for (const mapping of settingMappings) {
-    const settingValue = getSettingValue(settings, mapping.settingId);
-
-    if (!settingValue) {
-      continue;
-    }
-
-    for (const parameterKey of mapping.parameterKeys) {
-      if (parameterKey in defaults) {
-        const numericValue = Number(settingValue);
-        nextDefaults[parameterKey] = Number.isNaN(numericValue) ? settingValue : numericValue;
-        break;
-      }
-    }
-  }
-
-  return nextDefaults;
+  void settings;
+  return getModelParameterDefaults(model);
 }
 
 function getInitialModel(project: ProjectRecord | null, settings: SettingSection[]) {
@@ -1101,30 +1078,32 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
               </div>
             ) : null}
 
-            <div className="p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-[12px] font-medium flex items-center gap-2">
-                  <Settings className="w-4 h-4 text-text-muted" />
-                  {studioContent.generationParametersTitle}
-                </span>
-              </div>
-
-              {parameterGroups.map((group) => (
-                <div key={group.title} className="space-y-3 border border-border-muted bg-background-dark p-3">
-                  <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">{group.title}</h3>
-                  <div className="space-y-3">
-                    {group.parameters.map((definition) => (
-                      <ParameterField
-                        key={definition.key}
-                        definition={definition}
-                        value={parameterValues[definition.key]}
-                        onChange={(value) => handleParameterChange(definition.key, value)}
-                      />
-                    ))}
-                  </div>
+            {parameterGroups.length > 0 ? (
+              <div className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-medium flex items-center gap-2">
+                    <Settings className="w-4 h-4 text-text-muted" />
+                    {studioContent.generationParametersTitle}
+                  </span>
                 </div>
-              ))}
-            </div>
+
+                {parameterGroups.map((group) => (
+                  <div key={group.title} className="space-y-3 border border-border-muted bg-background-dark p-3">
+                    <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">{group.title}</h3>
+                    <div className="space-y-3">
+                      {group.parameters.map((definition) => (
+                        <ParameterField
+                          key={definition.key}
+                          definition={definition}
+                          value={parameterValues[definition.key]}
+                          onChange={(value) => handleParameterChange(definition.key, value)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         </aside>
       </div>

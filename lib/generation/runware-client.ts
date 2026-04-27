@@ -1,7 +1,29 @@
-import { createGenerationTaskId } from '@/lib/generation/helpers';
 import { fetchWithRetry } from '@/lib/http/fetch-with-retry';
 
 const RUNWARE_API_URL = process.env.RUNWARE_API_URL ?? 'https://api.runware.ai/v1';
+
+type RunwareApiErrorOptions = {
+  code?: string;
+  taskUUID?: string;
+  status?: number;
+  rawResponse?: unknown;
+};
+
+export class RunwareApiError extends Error {
+  readonly code?: string;
+  readonly taskUUID?: string;
+  readonly status?: number;
+  readonly rawResponse?: unknown;
+
+  constructor(message: string, options: RunwareApiErrorOptions = {}) {
+    super(message);
+    this.name = 'RunwareApiError';
+    this.code = options.code;
+    this.taskUUID = options.taskUUID;
+    this.status = options.status;
+    this.rawResponse = options.rawResponse;
+  }
+}
 
 function getRunwareApiKey() {
   const apiKey = process.env.RUNWARE_API_KEY;
@@ -13,11 +35,7 @@ function getRunwareApiKey() {
   return apiKey;
 }
 
-function bufferToDataUri(buffer: Buffer, mimeType: string) {
-  return `data:${mimeType};base64,${buffer.toString('base64')}`;
-}
-
-function getResponseData(rawResponse: unknown) {
+export function getResponseData(rawResponse: unknown) {
   if (!rawResponse || typeof rawResponse !== 'object') {
     return [];
   }
@@ -34,6 +52,15 @@ function getResponseData(rawResponse: unknown) {
   }
 
   return [];
+}
+
+function getResponseErrors(rawResponse: unknown) {
+  if (!rawResponse || typeof rawResponse !== 'object') {
+    return [];
+  }
+
+  const responseRecord = rawResponse as Record<string, unknown>;
+  return Array.isArray(responseRecord.errors) ? responseRecord.errors : [];
 }
 
 function getErrorMessage(rawResponse: unknown) {
@@ -62,6 +89,36 @@ function getErrorMessage(rawResponse: unknown) {
   return null;
 }
 
+function getRunwareError(rawResponse: unknown) {
+  const errors = getResponseErrors(rawResponse);
+  const firstError = errors[0];
+
+  if (!firstError) {
+    return null;
+  }
+
+  if (typeof firstError === 'string') {
+    return {
+      message: firstError,
+      code: undefined,
+      taskUUID: undefined,
+    };
+  }
+
+  if (typeof firstError === 'object') {
+    const errorRecord = firstError as Record<string, unknown>;
+    return {
+      message: typeof errorRecord.message === 'string'
+        ? errorRecord.message
+        : 'Runware request failed.',
+      code: typeof errorRecord.code === 'string' ? errorRecord.code : undefined,
+      taskUUID: typeof errorRecord.taskUUID === 'string' ? errorRecord.taskUUID : undefined,
+    };
+  }
+
+  return null;
+}
+
 export function findTaskResult(rawResponse: unknown, taskUUID: string) {
   return getResponseData(rawResponse).find((item) => {
     if (!item || typeof item !== 'object') {
@@ -70,6 +127,12 @@ export function findTaskResult(rawResponse: unknown, taskUUID: string) {
 
     return String((item as Record<string, unknown>).taskUUID ?? '') === taskUUID;
   }) as Record<string, unknown> | undefined;
+}
+
+export function getTaskStatus(rawResponse: unknown, taskUUID: string) {
+  const taskResult = findTaskResult(rawResponse, taskUUID);
+  const status = taskResult?.status;
+  return typeof status === 'string' ? status.toLowerCase() : null;
 }
 
 export class RunwareClient {
@@ -87,41 +150,34 @@ export class RunwareClient {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(tasks),
-      retries: 2,
-      timeoutMs: 45000,
+      retries: 1,
+      timeoutMs: 20000,
     });
 
     const rawResponse = await response.json().catch(() => null);
+    const apiError = getRunwareError(rawResponse);
 
-    if (!response.ok) {
-      throw new Error(getErrorMessage(rawResponse) ?? 'Runware request failed.');
+    if (!response.ok || apiError) {
+      throw new RunwareApiError(
+        apiError?.message ?? getErrorMessage(rawResponse) ?? 'Runware request failed.',
+        {
+          code: apiError?.code,
+          taskUUID: apiError?.taskUUID,
+          status: response.status,
+          rawResponse,
+        },
+      );
     }
 
     return rawResponse;
   }
 
-  async uploadImage(buffer: Buffer, mimeType: string) {
-    const taskUUID = createGenerationTaskId();
-    const rawResponse = await this.request([
+  async getResponse(taskUUID: string) {
+    return this.request([
       {
-        taskType: 'imageUpload',
+        taskType: 'getResponse',
         taskUUID,
-        image: bufferToDataUri(buffer, mimeType),
       },
     ]);
-
-    const result = findTaskResult(rawResponse, taskUUID);
-
-    if (!result) {
-      throw new Error('Runware image upload did not return a task result.');
-    }
-
-    const imageUUID = result.imageUUID ?? result.imageUuid ?? result.uuid;
-
-    if (typeof imageUUID !== 'string') {
-      throw new Error('Runware image upload did not return an image UUID.');
-    }
-
-    return imageUUID;
   }
 }

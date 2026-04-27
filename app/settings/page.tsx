@@ -15,9 +15,6 @@ export default async function SettingsPage() {
   const visibleSettingIds = new Set([
     'default-model',
     'default-output-format',
-    'default-resolution',
-    'default-texture-size',
-    'default-decimation',
   ]);
   const visibleSections = sections
     .map((section) => ({

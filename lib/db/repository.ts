@@ -566,10 +566,10 @@ export async function createGenerationDraft(input: {
       'Queued',
       'globe',
       input.prompt,
-      String(input.parameterValues.seed ?? defaults.seed ?? 42),
-      String(input.parameterValues['settings.resolution'] ?? defaults['settings.resolution'] ?? '1024'),
-      Number(input.parameterValues['settings.sparseStructure.guidanceStrength'] ?? defaults['settings.sparseStructure.guidanceStrength'] ?? 7.5),
-      String(input.parameterValues['settings.decimationTarget'] ?? defaults['settings.decimationTarget'] ?? 500000),
+      String(input.parameterValues.seed ?? defaults.seed ?? 'Auto'),
+      String(input.parameterValues['settings.resolution'] ?? defaults['settings.resolution'] ?? 'Default'),
+      Number(input.parameterValues['settings.sparseStructure.guidanceStrength'] ?? defaults['settings.sparseStructure.guidanceStrength'] ?? 0),
+      String(input.parameterValues['settings.decimationTarget'] ?? defaults['settings.decimationTarget'] ?? 'Default'),
       projectRecordDefaults.triCount,
       projectRecordDefaults.vertCount,
       projectRecordDefaults.fps,
@@ -705,6 +705,39 @@ export async function incrementGenerationJobAttempt(jobId: string) {
       WHERE id = ?
     `,
     args: [now, jobId],
+  });
+}
+
+export async function markGenerationJobProviderPending(input: {
+  jobId: string;
+  providerTaskId: string;
+  responsePayloadJson: string;
+}) {
+  const db = await getDatabaseClient();
+  const now = new Date().toISOString();
+
+  await db.execute({
+    sql: `
+      UPDATE generation_jobs
+      SET status = 'running',
+          provider_task_id = ?,
+          response_payload_json = ?,
+          updated_at = ?
+      WHERE id = ?
+    `,
+    args: [input.providerTaskId, input.responsePayloadJson, now, input.jobId],
+  });
+
+  await db.execute({
+    sql: `
+      UPDATE projects
+      SET generation_status = 'running',
+          updated_label = 'Processing now',
+          tris_label = 'Generating',
+          auto_save_label = 'Generation in progress'
+      WHERE generation_job_id = ?
+    `,
+    args: [input.jobId],
   });
 }
 

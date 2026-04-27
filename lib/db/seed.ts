@@ -4,10 +4,9 @@ import type {
   UserProfile,
   WorkspaceSummary,
 } from '@/lib/db/types';
-import { getDefaultGenerationModel, getModelParameterDefaults } from '@/lib/generation/registry';
+import { getDefaultGenerationModel } from '@/lib/generation/registry';
 
 const defaultModel = getDefaultGenerationModel();
-const defaultParameters = getModelParameterDefaults(defaultModel);
 
 export const defaultSettingSections: SettingSection[] = [
   {
@@ -26,31 +25,6 @@ export const defaultSettingSections: SettingSection[] = [
         label: 'Default Output Format',
         value: generationRuntimeDefaults.outputFormat.toUpperCase(),
         description: 'Preferred format when exporting generated assets.',
-      },
-    ],
-  },
-  {
-    id: 'generation',
-    title: 'Generation Defaults',
-    description: 'Baseline model settings used to keep new assets consistent.',
-    items: [
-      {
-        id: 'default-resolution',
-        label: 'Default Resolution',
-        value: String(defaultParameters['settings.resolution'] ?? 1024),
-        description: 'Baseline voxel resolution for new generations.',
-      },
-      {
-        id: 'default-texture-size',
-        label: 'Default Texture Size',
-        value: String(defaultParameters['settings.textureSize'] ?? 2048),
-        description: 'Baseline texture size for image-to-3D jobs.',
-      },
-      {
-        id: 'default-decimation',
-        label: 'Default Decimation Target',
-        value: String(defaultParameters['settings.decimationTarget'] ?? 500000),
-        description: 'Baseline mesh simplification target for output assets.',
       },
     ],
   },
