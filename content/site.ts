@@ -203,7 +203,7 @@ export const studioContent = {
   modelLabel: 'Model',
   promptLabel: 'Prompt',
   clearPromptLabel: 'Clear',
-  promptPlaceholder: 'Prompt input is only sent when the selected model supports it.',
+  promptPlaceholder: 'Describe the asset or selected object.',
   referenceImageLabel: 'Reference Image',
   referenceImageTitle: 'Upload source image',
   referenceImageHelp: 'PNG, JPG, or WEBP up to 10MB',
@@ -230,7 +230,7 @@ export const studioContent = {
   loaderSubtitle: 'Building mesh, texture, and export package',
   tooltips: {
     model: 'Select the provider-backed model you want to run.',
-    prompt: 'Only models that support prompts will send this field to the provider.',
+    prompt: 'Describe the source or target asset.',
     sourceImage: 'Upload the reference image used for the current generation.',
     wireframe: 'Switch to the wireframe viewport overlay.',
     solid: 'Switch back to the solid viewport preview.',

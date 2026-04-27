@@ -26,6 +26,31 @@
   --radius-full: 9999px;
 }
 
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-muted) var(--color-background-dark);
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: var(--color-background-dark);
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: var(--color-border-muted);
+    border: 2px solid var(--color-background-dark);
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--color-surface-hover);
+  }
+}
+
 @layer utilities {
   .bg-grid-pattern {
     background-size: 40px 40px;

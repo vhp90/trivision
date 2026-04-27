@@ -271,7 +271,12 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
   const studioModeLabel = getStudioModeLabel(selectedModel);
   const autoSaveLabel = currentProject?.autoSaveLabel ?? studioDefaults.emptyAutoSaveLabel;
   const promptDisabled = selectedModel.capabilities.promptSupport === 'none';
+  const promptInputDisabled = promptDisabled && !textToImageEnabled;
   const showPromptField = textToImageEnabled || !promptDisabled;
+  const activeStudioModeLabel = textToImageEnabled ? 'Text to 3D' : studioModeLabel;
+  const promptPlaceholder = textToImageEnabled
+    ? 'Describe the source image to generate.'
+    : studioContent.promptPlaceholder;
   const requiresLightningPreprocess = isLightningTrellisModel(selectedModel.id);
   const hasPersistedLightningSource = Boolean(!sourceFile && currentProject?.sourceImagePath && currentProject?.modelId === selectedModel.id);
   const disabledModelLabels = generationModels
@@ -834,7 +839,7 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
         <aside className="w-[320px] flex flex-col border-r border-border-muted bg-surface shrink-0 z-10 relative">
           <div className="p-4 border-b border-border-muted flex items-center gap-2">
             {showPromptField ? <Type className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
-            <h2 className="font-display font-bold text-[14px]">{studioModeLabel}</h2>
+            <h2 className="font-display font-bold text-[14px]">{activeStudioModeLabel}</h2>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-[92px]">
@@ -863,20 +868,18 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
               ) : null}
             </div>
 
-            <div className="space-y-3 border border-border-muted bg-background-dark p-4">
-              <div>
-                <div className="text-[11px] font-mono text-text-muted uppercase tracking-wider">Source Preparation</div>
-                <div className="mt-1 text-[12px] text-text-muted">Generate or clean a source image before sending it to the 3D model.</div>
-              </div>
+            <div className="space-y-2">
               <button
                 type="button"
                 onClick={handleTextToImageToggle}
-                className="flex w-full items-center justify-between border border-border-muted bg-surface px-3 py-2 text-left hover:border-primary transition-colors"
+                aria-pressed={textToImageEnabled}
+                className={`flex w-full items-center justify-between border px-3 py-2 text-left transition-colors ${
+                  textToImageEnabled
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border-muted bg-background-dark text-text-main hover:border-primary'
+                }`}
               >
-                <div>
-                  <div className="text-[12px] text-text-main">Text to 3D source</div>
-                  <div className="text-[11px] text-text-muted">Use FLUX.2 klein at 1024 to create the input image.</div>
-                </div>
+                <span className="text-[12px] font-medium">Text to 3D</span>
                 <div className={`w-10 h-5 rounded-full relative transition-colors ${textToImageEnabled ? 'bg-primary' : 'bg-surface-hover'}`}>
                   <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-surface transition-all ${textToImageEnabled ? 'right-0.5' : 'left-0.5'}`}></div>
                 </div>
@@ -884,12 +887,14 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
               <button
                 type="button"
                 onClick={handleRemoveBackgroundToggle}
-                className="flex w-full items-center justify-between border border-border-muted bg-surface px-3 py-2 text-left hover:border-primary transition-colors"
+                aria-pressed={removeBackgroundEnabled}
+                className={`flex w-full items-center justify-between border px-3 py-2 text-left transition-colors ${
+                  removeBackgroundEnabled
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border-muted bg-background-dark text-text-main hover:border-primary'
+                }`}
               >
-                <div>
-                  <div className="text-[12px] text-text-main">Remove background</div>
-                  <div className="text-[11px] text-text-muted">Run Bria RMBG 2.0 and use the transparent PNG.</div>
-                </div>
+                <span className="text-[12px] font-medium">RMBG</span>
                 <div className={`w-10 h-5 rounded-full relative transition-colors ${removeBackgroundEnabled ? 'bg-primary' : 'bg-surface-hover'}`}>
                   <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-surface transition-all ${removeBackgroundEnabled ? 'right-0.5' : 'left-0.5'}`}></div>
                 </div>
@@ -901,7 +906,7 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
                   disabled={!canPrepareSource}
                   className="w-full h-10 border border-primary text-primary font-display text-[12px] font-bold hover:bg-primary/10 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
                 >
-                  {isPreparationActive ? 'PREPARING SOURCE' : hasPreparedSource ? 'SOURCE READY' : 'PREPARE SOURCE'}
+                  {isPreparationActive ? 'PREPARING' : hasPreparedSource ? 'SOURCE READY' : 'PREPARE SOURCE'}
                 </button>
               ) : null}
             </div>
@@ -914,12 +919,12 @@ export function StudioPageClient({ project, settings }: StudioPageClientProps) {
                 </label>
                 <textarea
                   className="w-full h-28 bg-background-dark border border-border-muted rounded p-3 text-[13px] font-body text-text-main placeholder:text-text-muted focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none resize-none transition-all disabled:opacity-60"
-                  placeholder={studioContent.promptPlaceholder}
+                  placeholder={promptPlaceholder}
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
-                  disabled={promptDisabled}
-                  readOnly={promptDisabled}
-                  title={selectedModel.promptHelperText || studioContent.tooltips.prompt}
+                  disabled={promptInputDisabled}
+                  readOnly={promptInputDisabled}
+                  title={textToImageEnabled ? studioContent.tooltips.prompt : selectedModel.promptHelperText || studioContent.tooltips.prompt}
                 />
               </div>
             ) : null}
